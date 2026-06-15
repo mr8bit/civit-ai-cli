@@ -2448,3 +2448,7 @@ An independent four-lens review (spec-coverage, type-consistency, code-correctne
 - **m8** → token sent via `params=` (redactable); scan gate blocks only on `Danger`/`Error`/`PickleTensor`, warns (not blocks) on merely-absent scans.
 - **Spec amendments** (deliberate, documented): `is_cached` = existence-by-content-hash; no persistent inter-call delay in v1.
 - **Dropped false positives:** the `_json` alias and `protected_namespaces` coverage were both already correct.
+
+## Post-implementation addition (Task 14)
+
+The final whole-implementation review flagged the one spec item the plan had deferred: the **rich progress bar** (spec §8/§9). It was implemented as a follow-up task — `render.download_progress(enabled)` context manager (renders to stderr, indeterminate-total-safe, new task per file for `--all`) wired into `cli.download` via `progress_cb`, gated on `not --no-progress/--dry-run/--quiet`. Tests added at render/library/CLI levels. The spec is now fully covered.
