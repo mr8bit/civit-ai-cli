@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Packaging
+*.whl
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Local CivitAI cache (if pointed inside the repo during dev)
+.civitai-cache/
