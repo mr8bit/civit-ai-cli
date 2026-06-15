@@ -70,10 +70,10 @@ Rules: `modelId` via regex `civitai\.com/models/(\d+)`; pin via `[?&]modelVersio
 
 ### 3.4 Download mechanics
 - URL: `GET https://civitai.com/api/download/models/{versionId}` (+ optional `?type=&format=&size=&fp=` to select a non-primary variant). Bare URL serves the version's **primary** file.
-- Responds **3xx** → short-lived signed CDN URL. **Must follow redirects** and honor `Content-Disposition` for the real filename.
+- Responds **3xx** → short-lived signed CDN URL. **Must follow redirects.** The API already gives the real filename in `files[].name`, so the CLI uses **`file.name` as authoritative** (it is also the cache snapshot name); `Content-Disposition` parsing is intentionally **not** implemented (it would only duplicate `file.name` and complicate cache keying).
 - **Auth:** one account API key. Metadata calls use `Authorization: Bearer <key>`. **Downloads must pass `?token=<key>` as a query param** — on the cross-domain CDN redirect, HTTP clients strip the `Authorization` header, so the bearer header alone can fail for gated files. (Medium confidence on exact strip behavior; `?token=` is the safe path.)
 - **Gating:** most public files download tokenless. Auth/entitlement required for login-gated, **Early Access** (`availability != "Public"` + `earlyAccessEndsAt` in the future), and purchase-gated resources → `401`/`403`.
-- **Rate limit:** `429` possible, no published numbers → exponential backoff + small inter-call delay.
+- **Rate limit:** `429` possible, no published numbers → exponential backoff + retries on `429`/`5xx` (no persistent inter-call delay in v1; revisit if `--all` triggers throttling).
 
 ---
 
@@ -210,7 +210,7 @@ HF-style content-addressed store, keyed by the immutable version id (no git-hash
 ```
 
 - `cache_root` default: `platformdirs.user_cache_dir("civitai")` (Linux: `~/.cache/civitai`), overridable.
-- `is_cached(model_id, version_id, file) -> bool`: blob for `file.sha256` exists (and, when a hash is known, matches).
+- `is_cached(model_id, version_id, file) -> bool`: the blob for `file.sha256` exists. The blob filename **is** the content hash, so name-presence implies content identity; full re-hash verification on demand is deferred to a future `verify` command (out of v1 scope).
 - `store(tmp_path, sha256, model_id, version_id, filename) -> Path`: atomically move temp → `blobs/<sha256>`, create/refresh the snapshot symlink, return the symlink path.
 - **Symlink fallback:** when symlinks are unavailable (Windows without privilege, some NAS) or `CIVITAI_DISABLE_SYMLINKS` is set, copy the blob into the snapshot path instead.
 - When `file.sha256` is absent, fall back to a blob name of `file-{file.id}` and skip dedup/verify for that file.
@@ -221,15 +221,16 @@ HF-style content-addressed store, keyed by the immutable version id (no git-hash
 
 `download_file(client, model_id, version, file, store, *, token, force, local_dir, use_symlinks, allow_unscanned, progress) -> Path`
 
-1. **Scan gate.** If `pickle_scan_result`/`virus_scan_result` not `Success`, or `metadata.format == "PickleTensor"`: warn. Proceed only if `allow_unscanned` (in a non-TTY, refuse without the flag).
-2. **Cache hit.** If `not force` and `store.is_cached(...)`: skip to step 6.
-3. **Offline.** If offline mode and not cached: raise `OfflineError`.
-4. **Stream.** `GET file.download_url` with `?token=` appended (if token set), `follow_redirects=True`. Write to `blobs/<sha256|fileid>.incomplete`. If a partial temp exists and the server honors ranges, send `Range: bytes=<n>-` to **resume**; else restart. Drive a `rich` progress bar (bytes, speed, ETA) unless disabled.
-5. **Verify & store.** Compute SHA256 while streaming; compare to `file.sha256` (fallback AutoV2/BLAKE3 if SHA256 absent). Mismatch → delete temp, raise `HashMismatchError`. No usable hash → warn, skip verify. Then `store.store(...)`.
-6. **Materialize.** If `local_dir` given: place the file there (symlink into the blob, or copy when `use_symlinks` is false / unsupported), creating dirs as needed.
-7. Return the path (cache symlink, or the `local_dir` path when materialized).
+1. **Availability gate.** `check_availability(version)`: if `availability != "Public"` and `early_access_ends_at` is absent or in the future → raise `EarlyAccessError` before any network I/O.
+2. **Scan gate.** *Block* (require `allow_unscanned`) only when a scan is actively `Danger`/`Error` or `metadata.format == "PickleTensor"`. When scans are merely missing/`Pending` (not `Success`), **warn but proceed** — many legitimate files omit these fields, so absence must not hard-block.
+3. **Cache hit.** If `not force` and `store.is_cached(...)`: skip to step 7.
+4. **Offline.** If offline mode and not cached: raise `OfflineError`.
+5. **Stream.** `GET file.download_url` passing the token via `params={"token": ...}` (so it can be redacted), `follow_redirects=True`. Write to `blobs/<sha256|fileid>.incomplete`. If a partial temp exists and the server honors ranges, send `Range: bytes=<n>-` to **resume**; on `416` (range not satisfiable / stale full partial) drop the partial and restart from 0. Read the body before mapping any non-2xx status to an error (a streamed response's `.text` is otherwise unread). Drive a `rich` progress bar via the optional `progress_cb` unless disabled.
+6. **Verify & store.** Compute SHA256 while streaming; compare to `file.sha256` (fallback AutoV2/BLAKE3 if SHA256 absent). Mismatch → delete temp, raise `HashMismatchError` (so the next run self-heals from byte 0). No usable hash → warn, skip verify. Then `store.store(...)`.
+7. **Materialize.** If `local_dir` given: place the file there (symlink into the blob, or copy when `use_symlinks` is false / unsupported), creating dirs as needed.
+8. Return the path (cache symlink, or the `local_dir` path when materialized).
 
-`--dry-run` short-circuits before step 4: print the plan (each file: name, size, cached?/would-download, and total bytes to fetch), then exit 0.
+`--dry-run` short-circuits before step 5: print the plan (each file: name, size, cached?/would-download, and total bytes to fetch), then exit 0.
 
 ---
 
@@ -311,7 +312,7 @@ TDD, fully offline via `respx` mocking `httpx`. Fixtures reuse real response sha
 - **client**: auth header set; `429`/`5xx` backoff-and-retry; `401/403/404` → typed errors (mock responses).
 - **resolver**: latest-by-`publishedAt`, pinned version, each selector filter, `--all`, ambiguity, no-primary fallback, no-match.
 - **cache**: blob store, snapshot symlink, dedup (same blob reused across versions), `is_cached`, symlink→copy fallback, `CACHEDIR.TAG`.
-- **download**: range-resume from a partial temp, SHA256 verify pass + mismatch (temp deleted), token appended to query, redirect followed, `Content-Disposition` filename, scan-gate refusal without `--allow-unscanned`, `--dry-run` plan.
+- **download**: range-resume from a partial temp (206 + `Range`), SHA256 verify pass + mismatch (temp deleted), token sent via `params`, redirect followed, scan-gate block-on-`Danger` then proceed with `allow_unscanned`, early-access pre-check raises before I/O, materialize copy-fallback when symlinks disabled, `--dry-run` plan. (Filename is `file.name`; no `Content-Disposition` parsing.)
 - **cli**: typer `CliRunner` — `info` table + `--json`, `download --dry-run`, error→exit-code mapping.
 
 ---
