@@ -25,3 +25,19 @@ def test_render_dry_run_lists_files_and_total():
     assert "a.safetensors" in text
     assert "b.safetensors" in text
     assert "cached" in text.lower()
+
+
+def test_download_progress_disabled_yields_none():
+    from civitai_hub.render import download_progress
+
+    with download_progress(False) as cb:
+        assert cb is None
+
+
+def test_download_progress_enabled_yields_callable():
+    from civitai_hub.render import download_progress
+
+    with download_progress(True) as cb:
+        assert callable(cb)
+        cb(10, 100)   # must not raise
+        cb(0, None)   # new file / indeterminate total must not raise

@@ -1,6 +1,16 @@
 """Human-readable rendering with rich. Functions return plain strings so they
 are easy to test; the CLI prints them."""
+import contextlib
+
 from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 from rich.table import Table
 
 from .models import ModelInfo, PlanItem
@@ -67,3 +77,33 @@ def render_dry_run(plan: list[PlanItem]) -> str:
     summary = f"Will download {sum(1 for p in plan if not p.cached)} file(s), " \
               f"{_human_size(to_download)} total."
     return _capture(table) + "\n" + summary
+
+
+@contextlib.contextmanager
+def download_progress(enabled: bool):
+    """Context manager yielding a progress callback (downloaded, total) for
+    download_file's progress_cb, or None when disabled. Renders to stderr so
+    stdout stays clean for the downloaded path(s)."""
+    if not enabled:
+        yield None
+        return
+
+    bar = Progress(
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        TimeRemainingColumn(),
+        console=Console(stderr=True),
+    )
+    state = {"task": None, "last": -1}
+
+    def callback(downloaded: int, total: int) -> None:
+        # A drop in `downloaded` marks the start of a new file (e.g. with --all).
+        if state["task"] is None or downloaded < state["last"]:
+            state["task"] = bar.add_task("downloading", total=total or None)
+        bar.update(state["task"], completed=downloaded, total=total or None)
+        state["last"] = downloaded
+
+    with bar:
+        yield callback

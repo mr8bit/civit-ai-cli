@@ -6,7 +6,7 @@ import typer
 
 import civitai_hub
 from .errors import CivitaiError
-from .render import render_dry_run, render_model_info
+from .render import download_progress, render_dry_run, render_model_info
 
 app = typer.Typer(add_completion=False, help="huggingface_hub, but for CivitAI.")
 
@@ -79,25 +79,28 @@ def download(
     """Download the chosen version's file(s) into the cache (and optional folder)."""
     fp = "fp16" if fp16 else "fp32" if fp32 else None
     size = "pruned" if pruned else "full" if full else None
+    show_progress = not no_progress and not dry_run and not quiet
     try:
-        result = civitai_hub.download(
-            url,
-            version_id=version_id,
-            file=file,
-            type=type,
-            format=format,
-            fp=fp,
-            size=size,
-            all=all_files,
-            cache_dir=cache_dir,
-            local_dir=local_dir,
-            use_symlinks=not no_symlinks,
-            token=token,
-            force=force,
-            allow_unscanned=allow_unscanned,
-            dry_run=dry_run,
-            progress=not no_progress,
-        )
+        with download_progress(show_progress) as progress_cb:
+            result = civitai_hub.download(
+                url,
+                version_id=version_id,
+                file=file,
+                type=type,
+                format=format,
+                fp=fp,
+                size=size,
+                all=all_files,
+                cache_dir=cache_dir,
+                local_dir=local_dir,
+                use_symlinks=not no_symlinks,
+                token=token,
+                force=force,
+                allow_unscanned=allow_unscanned,
+                dry_run=dry_run,
+                progress=not no_progress,
+                progress_cb=progress_cb,
+            )
     except CivitaiError as exc:
         _fail(exc)
         return

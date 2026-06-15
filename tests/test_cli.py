@@ -94,3 +94,34 @@ def test_download_writes_file(monkeypatch, tmp_path):
     result = runner.invoke(app, ["download", "1", "-o", str(out), "--no-progress"])
     assert result.exit_code == 0
     assert (out / "m.safetensors").read_bytes() == body
+
+
+@respx.mock
+def test_download_with_progress_writes_file(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    body = b"weights"
+    sha = hashlib.sha256(body).hexdigest().upper()
+    payload = {
+        "id": 1, "name": "m", "type": "LORA",
+        "modelVersions": [{
+            "id": 5, "baseModel": "Pony", "status": "Published",
+            "publishedAt": "2024-01-01T00:00:00.000Z",
+            "downloadUrl": "https://civitai.com/api/download/models/5",
+            "files": [{
+                "id": 9, "name": "m.safetensors", "type": "Model",
+                "metadata": {"format": "SafeTensor"}, "primary": True,
+                "hashes": {"SHA256": sha},
+                "downloadUrl": "https://civitai.com/api/download/models/5",
+                "pickleScanResult": "Success", "virusScanResult": "Success",
+            }],
+        }],
+    }
+    respx.get(f"{BASE_URL}/models/1").mock(return_value=httpx.Response(200, json=payload))
+    respx.get("https://civitai.com/api/download/models/5").mock(
+        return_value=httpx.Response(200, content=body)
+    )
+    out = tmp_path / "loras"
+    # NOTE: no --no-progress here, exercising the progress-bar path
+    result = runner.invoke(app, ["download", "1", "-o", str(out)])
+    assert result.exit_code == 0
+    assert (out / "m.safetensors").read_bytes() == body

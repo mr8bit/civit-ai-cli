@@ -95,3 +95,33 @@ def test_download_dry_run_returns_plan(monkeypatch, tmp_path, model_payload):
     assert isinstance(plan, list)
     assert all(isinstance(p, PlanItem) for p in plan)
     assert plan[0].cached is False
+
+
+@respx.mock
+def test_download_invokes_progress_cb(monkeypatch, tmp_path):
+    _patch_cache(monkeypatch, tmp_path)
+    body = b"weights-data-1234567890"
+    sha = hashlib.sha256(body).hexdigest().upper()
+    payload = {
+        "id": 1, "name": "m", "type": "LORA",
+        "modelVersions": [{
+            "id": 5, "baseModel": "Pony", "status": "Published",
+            "publishedAt": "2024-01-01T00:00:00.000Z",
+            "downloadUrl": "https://civitai.com/api/download/models/5",
+            "files": [{
+                "id": 9, "name": "m.safetensors", "type": "Model",
+                "metadata": {"format": "SafeTensor"}, "primary": True,
+                "hashes": {"SHA256": sha},
+                "downloadUrl": "https://civitai.com/api/download/models/5",
+                "pickleScanResult": "Success", "virusScanResult": "Success",
+            }],
+        }],
+    }
+    respx.get(f"{BASE_URL}/models/1").mock(return_value=httpx.Response(200, json=payload))
+    respx.get("https://civitai.com/api/download/models/5").mock(
+        return_value=httpx.Response(200, content=body)
+    )
+    calls = []
+    civitai_hub.download("1", progress_cb=lambda d, t: calls.append((d, t)))
+    assert calls  # invoked at least once
+    assert calls[-1][0] == len(body)  # final downloaded == file size
