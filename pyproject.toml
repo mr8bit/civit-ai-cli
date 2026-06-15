@@ -8,6 +8,19 @@ version = "0.1.0"
 description = "huggingface_hub but for CivitAI — inspect and download models/LoRAs"
 readme = "README.md"
 requires-python = ">=3.10"
+keywords = ["civitai", "huggingface_hub", "stable-diffusion", "lora", "checkpoint", "cli", "download"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Utilities",
+]
 dependencies = [
     "httpx>=0.27",
     "pydantic>=2.6",
@@ -15,6 +28,12 @@ dependencies = [
     "rich>=13.7",
     "platformdirs>=4.2",
 ]
+
+[project.urls]
+# Update these to your actual repository before publishing.
+Homepage = "https://github.com/mr8bit/civit-ai-cli"
+Repository = "https://github.com/mr8bit/civit-ai-cli"
+Issues = "https://github.com/mr8bit/civit-ai-cli/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "respx>=0.21", "ruff>=0.5"]

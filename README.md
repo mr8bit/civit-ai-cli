@@ -1,39 +1,133 @@
+<!-- Badges: update the `mr8bit/civit-ai-cli` slug below to your actual GitHub owner/repo. -->
 # civitai-hub
 
-`huggingface_hub`, but for [CivitAI](https://civitai.com). Inspect a model and
-download its checkpoint / LoRA into a deduplicated managed cache.
+[![CI](https://github.com/mr8bit/civit-ai-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/mr8bit/civit-ai-cli/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+**`huggingface_hub`, but for [CivitAI](https://civitai.com).** Point it at a model URL to inspect what's inside (type, base/parent model, every file with sizes and hashes) and download the checkpoint or LoRA into a deduplicated, content-addressed cache — usable as both a CLI and an importable Python library.
+
+```console
+$ civitai download https://civitai.com/models/580857 --fp16 -o ~/ComfyUI/models/loras
+~/ComfyUI/models/loras/realistic-skin-xl.safetensors
+```
+
+## Features
+
+- **Inspect before you fetch** — `civitai info <url>` shows the model type, base/parent model, versions, and a table of every file (size, format, precision, hash, scan status).
+- **Smart, scriptable downloads** — picks the URL-pinned version (or the latest) and its primary file by default; override with `--version-id`, `--fp16/--fp32`, `--pruned/--full`, `--format`, `--file`, or grab everything with `--all`.
+- **Managed cache like HF Hub** — content-addressed blobs keyed by SHA256, with per-version snapshot symlinks. The same file reused across versions is stored once. Re-downloads are skipped.
+- **Resumable & verified** — HTTP range-resume for interrupted downloads, automatic SHA256 verification, and a live progress bar.
+- **Library + CLI** — everything the CLI does is a one-line call from Python.
+- **Safe by default** — blocks files flagged unsafe by CivitAI's scanners (override with `--allow-unscanned`) and fails fast on early-access/gated content with a clear message.
 
 ## Install
 
-    pipx install civitai-hub      # or: pip install -e ".[dev]" for development
+```bash
+pipx install civitai-hub        # isolated CLI (recommended)
+# or
+pip install civitai-hub         # into the current environment
+```
 
-## CLI
+For development from a clone:
 
-    civitai info  https://civitai.com/models/580857/realistic-skin
-    civitai download https://civitai.com/models/580857 --fp16 -o ~/ComfyUI/models/loras
-    civitai download 580857 --dry-run
-    civitai download 580857 --all
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
 
-Auth (for gated / NSFW): `export CIVITAI_TOKEN=<your key>` or pass `--token`.
+## CLI quickstart
 
-## Library
+```bash
+# Inspect a model (human table, or --json for machines)
+civitai info https://civitai.com/models/580857/realistic-skin
+civitai info 580857 --json
+
+# Download the primary file of the latest (or URL-pinned) version
+civitai download https://civitai.com/models/580857
+
+# Drop a specific precision straight into your ComfyUI/A1111 folder
+civitai download 580857 --fp16 -o ~/ComfyUI/models/loras
+
+# Preview what would be fetched without downloading
+civitai download 580857 --dry-run
+
+# Grab every file in the version
+civitai download 580857 --all
+```
+
+The downloaded path is printed to **stdout** (the progress bar goes to stderr), so it pipes cleanly:
+
+```bash
+MODEL=$(civitai download 580857 --no-progress)
+```
+
+## Library usage
 
 ```python
 import civitai_hub
 
+# Inspect
 info = civitai_hub.model_info("https://civitai.com/models/580857")
-path = civitai_hub.download("https://civitai.com/models/580857", fp="fp16",
-                            local_dir="~/ComfyUI/models/loras")
+print(info.model.type, info.version.base_model, len(info.files))
+
+# Download — returns the local Path (or list[Path] with all=True)
+path = civitai_hub.download(
+    "https://civitai.com/models/580857",
+    fp="fp16",
+    local_dir="~/ComfyUI/models/loras",
+)
+```
+
+`download(...)` mirrors `hf_hub_download` (single file) and `snapshot_download` (`all=True`).
+
+## Authentication
+
+Most public files download without a token. For gated, NSFW, or early-access resources, create an API key in your [CivitAI account settings](https://civitai.com/user/account) and provide it via:
+
+```bash
+export CIVITAI_TOKEN=<your key>     # or pass --token <key>
 ```
 
 ## Configuration
 
-| Env | Meaning |
-|---|---|
-| `CIVITAI_TOKEN` | API key |
-| `CIVITAI_HOME` | cache root (default: platform cache dir) |
-| `CIVITAI_OFFLINE` | serve cache only |
-| `CIVITAI_DISABLE_SYMLINKS` | copy instead of symlink |
-| `CIVITAI_NO_PROGRESS` | disable progress |
+Precedence is **flag → environment variable → default**.
 
-See `docs/superpowers/specs/` and `docs/superpowers/plans/` for design details.
+| Setting | Flag | Env var | Default |
+|---|---|---|---|
+| API token | `--token` | `CIVITAI_TOKEN` | _(anonymous)_ |
+| Cache root | `--cache-dir` | `CIVITAI_HOME` | platform cache dir (`~/.cache/civitai` on Linux) |
+| Offline (cache only) | — | `CIVITAI_OFFLINE` | off |
+| Copy instead of symlink | `--no-symlinks` | `CIVITAI_DISABLE_SYMLINKS` | symlinks on |
+| Disable progress bar | `--no-progress` | `CIVITAI_NO_PROGRESS` | progress on |
+
+## How it works
+
+A model URL resolves to one `GET /api/v1/models/{id}` call; the version is the URL's pinned `modelVersionId` (or the latest published one), and the file is that version's primary `.safetensors` unless you filter it. Downloads stream the signed CDN URL with `?token=` (CivitAI strips the `Authorization` header on the cross-domain redirect), verify SHA256, and land in the cache:
+
+```
+$CIVITAI_HOME/
+└── models/<modelId>/
+    ├── blobs/<sha256>                      # content-addressed, deduplicated
+    └── snapshots/<versionId>/<filename>    # symlink → ../../blobs/<sha256>
+```
+
+`--local-dir` then materializes a symlink (or copy) of the blob into the folder you choose.
+
+For the full command/flag reference, cache details, troubleshooting, and exit codes, see **[docs/usage.md](docs/usage.md)**.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest                 # full suite (offline; httpx mocked with respx)
+pytest tests/test_resolver.py::test_fp_selector -v   # a single test
+ruff check src tests   # lint
+CIVITAI_LIVE=1 pytest tests/test_live.py -v           # opt-in test against the real API
+```
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the architecture overview and conventions, and `docs/superpowers/specs/` + `docs/superpowers/plans/` for the original design and implementation plan.
+
+## License
+
+Not yet specified — add a `LICENSE` file before publishing.
