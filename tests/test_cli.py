@@ -125,3 +125,26 @@ def test_download_with_progress_writes_file(monkeypatch, tmp_path):
     result = runner.invoke(app, ["download", "1", "-o", str(out)])
     assert result.exit_code == 0
     assert (out / "m.safetensors").read_bytes() == body
+
+
+@respx.mock
+def test_info_output_not_duplicated(monkeypatch, tmp_path, model_payload):
+    # Regression: _capture must not also print to real stdout (would double output).
+    _env(monkeypatch, tmp_path)
+    respx.get(f"{BASE_URL}/models/580857").mock(
+        return_value=httpx.Response(200, json=model_payload)
+    )
+    result = runner.invoke(app, ["info", "580857"])
+    assert result.exit_code == 0
+    assert result.stdout.count("Realistic Skin Texture Style") == 1
+
+
+@respx.mock
+def test_dry_run_output_not_duplicated(monkeypatch, tmp_path, model_payload):
+    _env(monkeypatch, tmp_path)
+    respx.get(f"{BASE_URL}/models/580857").mock(
+        return_value=httpx.Response(200, json=model_payload)
+    )
+    result = runner.invoke(app, ["download", "580857", "--dry-run"])
+    assert result.exit_code == 0
+    assert result.stdout.count("Will download") == 1

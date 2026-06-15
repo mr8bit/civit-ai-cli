@@ -28,9 +28,13 @@ def _human_size(num_bytes: int | None) -> str:
 
 
 def _capture(renderable) -> str:
-    console = Console(record=True, width=100)
-    console.print(renderable)
-    return console.export_text()
+    # capture() redirects output into a buffer so nothing is written to the real
+    # stdout — otherwise the renderable would print here AND again when the CLI
+    # echoes the returned string.
+    console = Console(width=100)
+    with console.capture() as capture:
+        console.print(renderable)
+    return capture.get()
 
 
 def render_model_info(info: ModelInfo) -> str:
