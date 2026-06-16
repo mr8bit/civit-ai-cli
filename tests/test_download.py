@@ -220,7 +220,7 @@ def test_scan_danger_blocks_then_allows(tmp_path):
         return_value=httpx.Response(200, content=body)
     )
     store = CacheStore(tmp_path)
-    with pytest.raises(CivitaiError):
+    with pytest.raises(CivitaiError, match="flagged unsafe"):
         download_file(CivitaiClient(), 10, version, file, store, settings=_settings(tmp_path))
     path = download_file(
         CivitaiClient(), 10, version, file, store,
@@ -255,3 +255,75 @@ def test_materialize_copy_when_symlinks_disabled(tmp_path):
     )
     assert path.is_symlink() is False
     assert path.read_bytes() == body
+
+
+@respx.mock
+def test_416_restart_from_full_partial(tmp_path):
+    # A leftover full-size partial makes the server reject the Range with 416;
+    # the loop must drop it and restart from byte 0 (distinct from the --force path).
+    full = b"0123456789abcdef" * 4  # 64 bytes
+    version, file = _version_with_payload(full)
+    store = CacheStore(tmp_path)
+    tmp = store.incomplete_path(10, file)
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_bytes(full)  # full-size stale partial
+
+    ranges = []
+
+    def responder(request):
+        rng = request.headers.get("Range")
+        ranges.append(rng)
+        return httpx.Response(416) if rng else httpx.Response(200, content=full)
+
+    respx.get("https://civitai.com/api/download/models/649002").mock(side_effect=responder)
+    path = download_file(CivitaiClient(), 10, version, file, store, settings=_settings(tmp_path))
+    assert ranges == ["bytes=64-", None]  # ranged -> 416 -> restart with no Range
+    assert path.read_bytes() == full
+
+
+@respx.mock
+def test_network_error_keeps_partial_for_resume(tmp_path):
+    version, file = _version_with_payload(b"x" * 100)
+    store = CacheStore(tmp_path)
+    tmp = store.incomplete_path(10, file)
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_bytes(b"xx")  # a resume-mode partial must survive a transport error
+    respx.get("https://civitai.com/api/download/models/649002").mock(
+        side_effect=httpx.ReadError("dropped")
+    )
+    with pytest.raises(NetworkError):
+        download_file(CivitaiClient(), 10, version, file, store, settings=_settings(tmp_path))
+    assert tmp.exists()  # left on disk so a re-run resumes
+
+
+@respx.mock
+def test_missing_sha_skips_verification_and_caches(tmp_path):
+    body = b"no-hash-bytes"
+    version = ModelVersion.model_validate({
+        "id": 800,
+        "files": [{
+            "id": 77, "name": "nohash.safetensors", "type": "Model",
+            "metadata": {"format": "SafeTensor"}, "primary": True,
+            "hashes": {},  # no SHA256 -> verification is skipped
+            "downloadUrl": "https://civitai.com/api/download/models/800",
+            "pickleScanResult": "Success", "virusScanResult": "Success",
+        }],
+    })
+    file = version.files[0]
+    respx.get("https://civitai.com/api/download/models/800").mock(
+        return_value=httpx.Response(200, content=body)
+    )
+    store = CacheStore(tmp_path)
+    path = download_file(CivitaiClient(), 10, version, file, store, settings=_settings(tmp_path))
+    assert path.read_bytes() == body
+    assert store.is_cached(10, file)  # cached under file-<id>
+
+
+def test_expired_early_access_is_allowed(tmp_path):
+    # availability != Public but the early-access window has passed -> not blocked.
+    version, file = _version_with_payload(b"x")
+    version.availability = "EarlyAccess"
+    version.early_access_ends_at = datetime.now(timezone.utc) - timedelta(days=1)
+    from civitai_hub.download import check_availability
+
+    check_availability(version)  # must not raise

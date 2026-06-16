@@ -5,6 +5,7 @@ import respx
 from civitai_hub.client import BASE_URL, CivitaiClient
 from civitai_hub.errors import (
     AuthRequiredError,
+    CivitaiError,
     ForbiddenError,
     NetworkError,
     NotFoundError,
@@ -66,6 +67,30 @@ def test_transport_error_wrapped_as_network_error():
     respx.get(f"{BASE_URL}/models/9").mock(side_effect=httpx.ConnectError("down"))
     with pytest.raises(NetworkError):
         CivitaiClient(max_retries=1, backoff_base=0).get_model(9)
+
+
+@respx.mock
+def test_retries_on_5xx_then_succeeds(model_payload):
+    route = respx.get(f"{BASE_URL}/models/1").mock(
+        side_effect=[httpx.Response(503), httpx.Response(200, json=model_payload)]
+    )
+    model = CivitaiClient(max_retries=2, backoff_base=0).get_model(1)
+    assert model.id == 580857
+    assert route.call_count == 2  # 5xx is retriable, not just 429
+
+
+@respx.mock
+def test_no_retry_when_max_retries_zero():
+    route = respx.get(f"{BASE_URL}/models/9").mock(return_value=httpx.Response(503))
+    with pytest.raises(CivitaiError):
+        CivitaiClient(max_retries=0, backoff_base=0).get_model(9)
+    assert route.call_count == 1
+
+
+def test_client_context_manager_closes_http():
+    with CivitaiClient() as c:
+        assert c.http.is_closed is False
+    assert c.http.is_closed is True
 
 
 @respx.mock

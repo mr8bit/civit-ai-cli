@@ -6,6 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-16
+
+### Fixed
+- `CivitaiClient` is now a context manager (`close()` / `__enter__`/`__exit__`); the public
+  `model_info`/`download`/`find_base_models` close the httpx client they open, so it no longer
+  leaks the connection pool when imported into long-running apps.
+
+### Tests
+- Cover the dangerous paths the 0.2.0 review flagged as unverified: genuine 416 range-restart,
+  transport-error-leaves-partial-for-resume, 5xx retry + `max_retries=0`, missing-SHA
+  verification-skip, expired early-access allowed, and the client context-manager.
+
 ## [0.2.0] - 2026-06-16
 
 ### Security
@@ -44,6 +56,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are attached to the GitHub release and published to PyPI (trusted publishing); a multi-arch
   Docker image is published to `ghcr.io`.
 
-[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mr8bit/civit-ai-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr8bit/civit-ai-cli/releases/tag/v0.1.0
