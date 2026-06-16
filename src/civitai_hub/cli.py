@@ -266,8 +266,12 @@ def logout():
 @app.command("config")
 def config_show():
     """Show the resolved configuration."""
-    s = resolve_settings()
+    try:
+        s = resolve_settings()
+    except CivitaiError as exc:
+        _fail(exc)
     tf = token_file()
+    typer.echo(f"host:       {s.host}")
     typer.echo(f"cache_dir:  {s.cache_dir}")
     typer.echo(f"token:      {'set' if s.token else 'none'}")
     typer.echo(f"token_file: {tf} {'(exists)' if tf.exists() else '(none)'}")

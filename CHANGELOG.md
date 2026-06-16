@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-17
+
+### Fixed
+- `civitai config` now shows the active `host` (so you can confirm a `civitai.red` mirror is in
+  effect), and surfaces a clean error instead of a traceback when `CIVITAI_HOST` is invalid.
+
 ## [0.3.1] - 2026-06-17
 
 ### Added
@@ -78,7 +84,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are attached to the GitHub release and published to PyPI (trusted publishing); a multi-arch
   Docker image is published to `ghcr.io`.
 
-[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/mr8bit/civit-ai-cli/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mr8bit/civit-ai-cli/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.0...v0.2.1
