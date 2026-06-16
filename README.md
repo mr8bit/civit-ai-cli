@@ -12,6 +12,13 @@ $ civitai download https://civitai.com/models/580857 --fp16 -o ~/ComfyUI/models/
 ~/ComfyUI/models/loras/realistic-skin-xl.safetensors
 ```
 
+<p align="center">
+  <img src="docs/assets/info.png" alt="civitai info — model type, base model, and a table of every file" width="840">
+  <br><em><code>civitai info &lt;url&gt;</code> — what's inside a model at a glance</em>
+</p>
+
+**Contents:** [Features](#features) · [Install](#install) · [CLI](#cli-quickstart) · [Library](#library-usage) · [Auth](#authentication) · [Configuration](#configuration) · [How it works](#how-it-works) · [Docker](#docker) · [Development](#development)
+
 ## Features
 
 - **Inspect before you fetch** — `civitai info <url>` shows the model type, base/parent model, versions, and a table of every file (size, format, precision, hash, scan status).
@@ -70,6 +77,11 @@ civitai download 580857 --all
 civitai base 580857
 civitai base 580857 --download 1 -o ~/ComfyUI/models/checkpoints
 ```
+
+<p align="center">
+  <img src="docs/assets/base.png" alt="civitai base — ranked base checkpoints for a LoRA's base-model family" width="820">
+  <br><em><code>civitai base &lt;url&gt;</code> — the checkpoints a LoRA runs on, most-downloaded first</em>
+</p>
 
 The downloaded path is printed to **stdout** (the progress bar goes to stderr), so it pipes cleanly:
 
