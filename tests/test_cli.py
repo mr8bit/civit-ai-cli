@@ -148,3 +148,59 @@ def test_dry_run_output_not_duplicated(monkeypatch, tmp_path, model_payload):
     result = runner.invoke(app, ["download", "580857", "--dry-run"])
     assert result.exit_code == 0
     assert result.stdout.count("Will download") == 1
+
+
+@respx.mock
+def test_base_lists_checkpoints(monkeypatch, tmp_path, model_payload):
+    _env(monkeypatch, tmp_path)
+    respx.get(f"{BASE_URL}/models/580857").mock(
+        return_value=httpx.Response(200, json=model_payload)
+    )
+    checkpoint = {**model_payload, "id": 999, "name": "Juggernaut XL", "type": "Checkpoint"}
+    respx.get(f"{BASE_URL}/models").mock(
+        return_value=httpx.Response(200, json={"items": [checkpoint], "metadata": {}})
+    )
+    result = runner.invoke(app, ["base", "580857"])
+    assert result.exit_code == 0
+    assert "Juggernaut XL" in result.stdout
+    assert "Pony" in result.stdout
+    assert result.stdout.count("Juggernaut XL") == 1
+
+
+@respx.mock
+def test_base_download_index(monkeypatch, tmp_path, model_payload):
+    _env(monkeypatch, tmp_path)
+    body = b"checkpoint-bytes"
+    sha = hashlib.sha256(body).hexdigest().upper()
+    respx.get(f"{BASE_URL}/models/580857").mock(
+        return_value=httpx.Response(200, json=model_payload)
+    )
+    checkpoint = {
+        "id": 999, "name": "Juggernaut XL", "type": "Checkpoint",
+        "modelVersions": [{
+            "id": 4242, "baseModel": "Pony", "status": "Published",
+            "publishedAt": "2024-05-01T00:00:00.000Z",
+            "downloadUrl": "https://civitai.com/api/download/models/4242",
+            "files": [{
+                "id": 50, "name": "jugg.safetensors", "type": "Model",
+                "metadata": {"format": "SafeTensor"}, "primary": True,
+                "hashes": {"SHA256": sha},
+                "downloadUrl": "https://civitai.com/api/download/models/4242",
+                "pickleScanResult": "Success", "virusScanResult": "Success",
+            }],
+        }],
+    }
+    respx.get(f"{BASE_URL}/models").mock(
+        return_value=httpx.Response(200, json={"items": [checkpoint], "metadata": {}})
+    )
+    # the --download path re-fetches the chosen checkpoint by id, then downloads it
+    respx.get(f"{BASE_URL}/models/999").mock(
+        return_value=httpx.Response(200, json=checkpoint)
+    )
+    respx.get("https://civitai.com/api/download/models/4242").mock(
+        return_value=httpx.Response(200, content=body)
+    )
+    out = tmp_path / "ckpt"
+    result = runner.invoke(app, ["base", "580857", "--download", "1", "-o", str(out), "--no-progress"])
+    assert result.exit_code == 0
+    assert (out / "jugg.safetensors").read_bytes() == body

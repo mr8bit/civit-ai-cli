@@ -4,12 +4,12 @@ from .client import CivitaiClient
 from .config import resolve_settings
 from .download import download_file
 from .errors import NotFoundError
-from .models import Model, ModelInfo, ModelVersion, PlanItem
+from .models import BaseModelMatches, Model, ModelInfo, ModelVersion, PlanItem
 from .resolver import FileSelectors, pick_files, pick_version
 from .urls import parse_model_url
 
 __version__ = "0.1.0"
-__all__ = ["model_info", "download", "ModelInfo", "PlanItem", "__version__"]
+__all__ = ["model_info", "download", "find_base_models", "ModelInfo", "PlanItem", "BaseModelMatches", "__version__"]
 
 
 def _resolve(client: CivitaiClient, ref, version_id) -> tuple[Model, ModelVersion]:
@@ -84,3 +84,21 @@ def download(
         for f in chosen
     ]
     return paths if all else paths[0]
+
+
+def find_base_models(
+    url_or_id, *, version_id=None, limit=10, token=None, cache_dir=None
+) -> BaseModelMatches:
+    settings = resolve_settings(token=token, cache_dir=cache_dir)
+    ref = parse_model_url(str(url_or_id))
+    client = CivitaiClient(token=settings.token)
+    model, version = _resolve(client, ref, version_id)
+    family = version.base_model
+    candidates = []
+    if family:
+        candidates = client.search_models(
+            types="Checkpoint", base_models=family, sort="Most Downloaded", limit=limit
+        )
+    return BaseModelMatches(
+        source=model, version=version, base_model=family, candidates=candidates
+    )

@@ -38,11 +38,11 @@ class CivitaiClient:
             timeout=timeout, headers=headers, follow_redirects=True
         )
 
-    def _get_json(self, path: str) -> dict:
+    def _get_json(self, path: str, params: dict | None = None) -> dict:
         url = f"{self.base_url}{path}"
         last: httpx.Response | None = None
         for attempt in range(self.max_retries + 1):
-            resp = self.http.get(url)
+            resp = self.http.get(url, params=params)
             if resp.status_code == 429 or resp.status_code >= 500:
                 last = resp
                 if attempt < self.max_retries:
@@ -83,3 +83,26 @@ class CivitaiClient:
         return ModelVersion.model_validate(
             self._get_json(f"/model-versions/by-hash/{file_hash}")
         )
+
+    def search_models(
+        self,
+        *,
+        types: str | None = None,
+        base_models: str | None = None,
+        query: str | None = None,
+        sort: str | None = None,
+        limit: int | None = 20,
+    ) -> list[Model]:
+        params: dict[str, object] = {}
+        if types is not None:
+            params["types"] = types
+        if base_models is not None:
+            params["baseModels"] = base_models
+        if query is not None:
+            params["query"] = query
+        if sort is not None:
+            params["sort"] = sort
+        if limit is not None:
+            params["limit"] = limit
+        data = self._get_json("/models", params=params)
+        return [Model.model_validate(item) for item in data.get("items", [])]

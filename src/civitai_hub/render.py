@@ -83,6 +83,26 @@ def render_dry_run(plan: list[PlanItem]) -> str:
     return _capture(table) + "\n" + summary
 
 
+def render_base_models(matches) -> str:
+    src = matches.source
+    header = Table.grid(padding=(0, 1))
+    header.add_row("For:", f"{src.name}  (#{src.id}, {src.type or '-'})")
+    header.add_row("Base model:", matches.base_model or "-")
+    header.add_row("Matches:", f"{len(matches.candidates)} checkpoints")
+
+    table = Table(title=f"Base checkpoints for '{matches.base_model or '-'}'")
+    table.add_column("#")
+    table.add_column("id")
+    table.add_column("name")
+    table.add_column("base")
+    table.add_column("downloads", justify="right")
+    for i, m in enumerate(matches.candidates, start=1):
+        base = m.model_versions[0].base_model if m.model_versions else None
+        downloads = (m.stats or {}).get("downloadCount", 0)
+        table.add_row(str(i), str(m.id), m.name, base or "-", f"{downloads:,}")
+    return _capture(header) + "\n" + _capture(table)
+
+
 @contextlib.contextmanager
 def download_progress(enabled: bool):
     """Context manager yielding a progress callback (downloaded, total) for

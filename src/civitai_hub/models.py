@@ -96,3 +96,13 @@ class PlanItem:
     file_name: str
     size_bytes: int | None
     cached: bool
+
+
+@dataclass
+class BaseModelMatches:
+    """Candidate base checkpoints for a model's baseModel family."""
+
+    source: Model
+    version: ModelVersion
+    base_model: str | None
+    candidates: list[Model]

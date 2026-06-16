@@ -125,3 +125,34 @@ def test_download_invokes_progress_cb(monkeypatch, tmp_path):
     civitai_hub.download("1", progress_cb=lambda d, t: calls.append((d, t)))
     assert calls  # invoked at least once
     assert calls[-1][0] == len(body)  # final downloaded == file size
+
+
+@respx.mock
+def test_find_base_models(monkeypatch, tmp_path, model_payload):
+    _patch_cache(monkeypatch, tmp_path)
+    # source model 580857; its LATEST version (649002) has baseModel "Pony"
+    respx.get(f"{BASE_URL}/models/580857").mock(
+        return_value=httpx.Response(200, json=model_payload)
+    )
+    checkpoint = {**model_payload, "id": 999, "name": "Some Checkpoint", "type": "Checkpoint"}
+    respx.get(f"{BASE_URL}/models").mock(
+        return_value=httpx.Response(200, json={"items": [checkpoint], "metadata": {}})
+    )
+    matches = civitai_hub.find_base_models("580857")
+    assert matches.base_model == "Pony"
+    assert [m.id for m in matches.candidates] == [999]
+    assert matches.source.id == 580857
+
+
+@respx.mock
+def test_find_base_models_no_base_model(monkeypatch, tmp_path):
+    _patch_cache(monkeypatch, tmp_path)
+    payload = {
+        "id": 7, "name": "No Base", "type": "LORA",
+        "modelVersions": [{"id": 70, "status": "Published",
+                           "publishedAt": "2024-01-01T00:00:00.000Z", "files": []}],
+    }
+    respx.get(f"{BASE_URL}/models/7").mock(return_value=httpx.Response(200, json=payload))
+    matches = civitai_hub.find_base_models("7")
+    assert matches.base_model is None
+    assert matches.candidates == []

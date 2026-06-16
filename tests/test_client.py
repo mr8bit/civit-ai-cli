@@ -67,3 +67,27 @@ def test_get_version_by_hash(version_payload):
     )
     v = CivitaiClient().get_version_by_hash("ABC123")
     assert v.id == 649002
+
+
+@respx.mock
+def test_search_models_parses_items_and_sends_params(model_payload):
+    listing = {"items": [model_payload], "metadata": {}}
+    route = respx.get(f"{BASE_URL}/models").mock(
+        return_value=httpx.Response(200, json=listing)
+    )
+    results = CivitaiClient().search_models(
+        types="Checkpoint", base_models="Pony", sort="Most Downloaded", limit=5
+    )
+    assert [m.id for m in results] == [580857]
+    url = str(route.calls.last.request.url)
+    assert "types=Checkpoint" in url
+    assert "baseModels=Pony" in url
+    assert "limit=5" in url
+
+
+@respx.mock
+def test_search_models_empty_items():
+    respx.get(f"{BASE_URL}/models").mock(
+        return_value=httpx.Response(200, json={"items": [], "metadata": {}})
+    )
+    assert CivitaiClient().search_models(query="nothing") == []

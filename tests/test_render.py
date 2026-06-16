@@ -41,3 +41,20 @@ def test_download_progress_enabled_yields_callable():
         assert callable(cb)
         cb(10, 100)   # must not raise
         cb(0, None)   # new file / indeterminate total must not raise
+
+
+def test_render_base_models_lists_candidates(model_payload):
+    from civitai_hub.models import BaseModelMatches, Model
+    from civitai_hub.render import render_base_models
+
+    source = Model.model_validate(model_payload)
+    cand = Model.model_validate({**model_payload, "id": 999, "name": "Juggernaut XL"})
+    matches = BaseModelMatches(
+        source=source, version=source.model_versions[1],
+        base_model="Pony", candidates=[cand],
+    )
+    text = render_base_models(matches)
+    assert "Juggernaut XL" in text
+    assert "Pony" in text
+    assert "999" in text
+    assert text.count("Juggernaut XL") == 1  # rendered once (no double-print)
