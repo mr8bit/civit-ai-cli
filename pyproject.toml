@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "huggingface_hub but for CivitAI — inspect and download models/LoRAs"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Artemiy Mazaew" }]
 keywords = ["civitai", "huggingface_hub", "stable-diffusion", "lora", "checkpoint", "cli", "download"]
 classifiers = [
     "Development Status :: 4 - Beta",

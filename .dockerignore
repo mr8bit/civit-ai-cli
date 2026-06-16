@@ -1,0 +1,22 @@
+# Keep the build context small — only pyproject/README/LICENSE/src are needed.
+.git
+.github
+.venv
+venv
+env
+dist
+build
+*.egg-info
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+tests
+docs
+.gitignore
+CONTRIBUTING.md
+CHANGELOG.md
+CLAUDE.md

@@ -121,6 +121,25 @@ $CIVITAI_HOME/
 
 For the full command/flag reference, cache details, troubleshooting, and exit codes, see **[docs/usage.md](docs/usage.md)**.
 
+## Docker
+
+Prebuilt multi-arch images are published to the GitHub Container Registry on every release:
+
+```bash
+# inspect a model
+docker run --rm ghcr.io/mr8bit/civit-ai-cli info 580857
+
+# download into a host folder (mount it as the cache + output)
+docker run --rm -v "$PWD/models:/data" \
+  ghcr.io/mr8bit/civit-ai-cli download 580857 -o /data
+
+# pass a token for gated content
+docker run --rm -e CIVITAI_TOKEN="$CIVITAI_TOKEN" \
+  ghcr.io/mr8bit/civit-ai-cli base 580857
+```
+
+The cache lives at `/data` inside the image (`CIVITAI_HOME`) — mount a volume there to persist downloads. Build it yourself with `docker build -t civitai-hub .`.
+
 ## Development
 
 ```bash
@@ -135,4 +154,4 @@ See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the architecture overview and con
 
 ## License
 
-Not yet specified — add a `LICENSE` file before publishing.
+[MIT](LICENSE) © Artemiy Mazaew
