@@ -3,12 +3,11 @@ store, materialize."""
 import hashlib
 import logging
 import os
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from .cache import CacheStore
+from .cache import CacheStore, link_or_copy
 from .client import CivitaiClient
 from .config import Settings
 from .errors import CivitaiError, EarlyAccessError, HashMismatchError, OfflineError
@@ -110,15 +109,7 @@ def _verify(tmp: Path, file: ModelFile) -> None:
 
 def _materialize(blob: Path, dest: Path, use_symlinks: bool) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.is_symlink() or dest.exists():
-        dest.unlink()
-    if use_symlinks:
-        try:
-            dest.symlink_to(os.path.relpath(blob, dest.parent))
-            return dest
-        except OSError:
-            pass
-    shutil.copy2(blob, dest)
+    link_or_copy(blob, dest, use_symlinks)
     return dest
 
 
@@ -147,7 +138,7 @@ def download_file(
     elif _scan_unverified(file):
         logger.warning("Scan results for %s are not all 'Success'; proceeding.", file.name)
 
-    if force or not store.is_cached(model_id, version.id, file):
+    if force or not store.is_cached(model_id, file):
         if settings.offline:
             raise OfflineError(f"{file.name} is not cached and offline mode is on.")
         tmp = _stream_to_temp(client, file, store, model_id, settings.token, progress_cb)

@@ -50,7 +50,7 @@ def test_download_verifies_and_caches(tmp_path):
         CivitaiClient(), 10, version, file, store, settings=_settings(tmp_path),
     )
     assert path.read_bytes() == body
-    assert store.is_cached(10, version.id, file)
+    assert store.is_cached(10, file)
 
 
 @respx.mock
@@ -78,7 +78,7 @@ def test_hash_mismatch_deletes_and_raises(tmp_path):
     with pytest.raises(HashMismatchError):
         download_file(CivitaiClient(), 10, version, file, store, settings=_settings(tmp_path))
     assert not store.incomplete_path(10, file).exists()
-    assert not store.is_cached(10, version.id, file)
+    assert not store.is_cached(10, file)
 
 
 @respx.mock

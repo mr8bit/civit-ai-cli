@@ -40,22 +40,15 @@ class CivitaiClient:
 
     def _get_json(self, path: str, params: dict | None = None) -> dict:
         url = f"{self.base_url}{path}"
-        last: httpx.Response | None = None
         for attempt in range(self.max_retries + 1):
             resp = self.http.get(url, params=params)
-            if resp.status_code == 429 or resp.status_code >= 500:
-                last = resp
-                if attempt < self.max_retries:
-                    time.sleep(self.backoff_base * (2**attempt))
-                    continue
-            self._raise_for_status(resp)
+            retriable = resp.status_code == 429 or resp.status_code >= 500
+            if retriable and attempt < self.max_retries:
+                time.sleep(self.backoff_base * (2**attempt))
+                continue
+            self._raise_for_status(resp)  # the final retriable attempt raises here too
             return resp.json()
-        if last is not None and last.status_code == 429:
-            raise RateLimitError("Rate limited by CivitAI (HTTP 429). Try again later.")
-        raise CivitaiError(
-            f"Request failed after {self.max_retries} retries "
-            f"(last status {last.status_code if last else 'unknown'})."
-        )
+        raise CivitaiError("Request failed: max_retries must be >= 0.")
 
     @staticmethod
     def _raise_for_status(resp: httpx.Response) -> None:
@@ -93,16 +86,16 @@ class CivitaiClient:
         sort: str | None = None,
         limit: int | None = 20,
     ) -> list[Model]:
-        params: dict[str, object] = {}
-        if types is not None:
-            params["types"] = types
-        if base_models is not None:
-            params["baseModels"] = base_models
-        if query is not None:
-            params["query"] = query
-        if sort is not None:
-            params["sort"] = sort
-        if limit is not None:
-            params["limit"] = limit
+        params = {
+            k: v
+            for k, v in {
+                "types": types,
+                "baseModels": base_models,
+                "query": query,
+                "sort": sort,
+                "limit": limit,
+            }.items()
+            if v is not None
+        }
         data = self._get_json("/models", params=params)
         return [Model.model_validate(item) for item in data.get("items", [])]

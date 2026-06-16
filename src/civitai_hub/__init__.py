@@ -24,8 +24,8 @@ def _resolve(client: CivitaiClient, ref, version_id) -> tuple[Model, ModelVersio
     return model, pick_version(model, pinned)
 
 
-def model_info(url_or_id, *, version_id=None, token=None, cache_dir=None) -> ModelInfo:
-    settings = resolve_settings(token=token, cache_dir=cache_dir)
+def model_info(url_or_id, *, version_id=None, token=None) -> ModelInfo:
+    settings = resolve_settings(token=token)
     ref = parse_model_url(str(url_or_id))
     client = CivitaiClient(token=settings.token)
     model, version = _resolve(client, ref, version_id)
@@ -49,11 +49,10 @@ def download(
     force=False,
     allow_unscanned=False,
     dry_run=False,
-    progress=True,
     progress_cb=None,
 ):
     settings = resolve_settings(
-        token=token, cache_dir=cache_dir, use_symlinks=use_symlinks, progress=progress
+        token=token, cache_dir=cache_dir, use_symlinks=use_symlinks
     )
     ref = parse_model_url(str(url_or_id))
     client = CivitaiClient(token=settings.token)
@@ -69,7 +68,7 @@ def download(
             PlanItem(
                 file_name=f.name,
                 size_bytes=f.size_bytes,
-                cached=store.is_cached(model.id, version.id, f),
+                cached=store.is_cached(model.id, f),
             )
             for f in chosen
         ]
@@ -87,9 +86,9 @@ def download(
 
 
 def find_base_models(
-    url_or_id, *, version_id=None, limit=10, token=None, cache_dir=None
+    url_or_id, *, version_id=None, limit=10, token=None
 ) -> BaseModelMatches:
-    settings = resolve_settings(token=token, cache_dir=cache_dir)
+    settings = resolve_settings(token=token)
     ref = parse_model_url(str(url_or_id))
     client = CivitaiClient(token=settings.token)
     model, version = _resolve(client, ref, version_id)

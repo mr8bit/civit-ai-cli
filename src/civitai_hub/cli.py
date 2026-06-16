@@ -1,17 +1,23 @@
 """Typer CLI — a thin wrapper over the library API."""
 import json as _json
-from typing import Optional
+from typing import NoReturn, Optional
 
 import typer
 
 import civitai_hub
+from .config import resolve_settings
 from .errors import CivitaiError
 from .render import download_progress, render_base_models, render_dry_run, render_model_info
+
+
+def _progress_enabled(no_progress: bool) -> bool:
+    """Resolve the progress flag honoring --no-progress AND CIVITAI_NO_PROGRESS."""
+    return resolve_settings(progress=False if no_progress else None).progress
 
 app = typer.Typer(add_completion=False, help="huggingface_hub, but for CivitAI.")
 
 
-def _fail(exc: CivitaiError) -> None:
+def _fail(exc: CivitaiError) -> NoReturn:
     typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
     raise typer.Exit(code=exc.exit_code)
 
@@ -43,7 +49,6 @@ def info(
         result = civitai_hub.model_info(url, version_id=version_id)
     except CivitaiError as exc:
         _fail(exc)
-        return
     if json:
         payload = {
             "model": result.model.model_dump(by_alias=True),
@@ -79,7 +84,7 @@ def download(
     """Download the chosen version's file(s) into the cache (and optional folder)."""
     fp = "fp16" if fp16 else "fp32" if fp32 else None
     size = "pruned" if pruned else "full" if full else None
-    show_progress = not no_progress and not dry_run and not quiet
+    show_progress = _progress_enabled(no_progress) and not dry_run and not quiet
     try:
         with download_progress(show_progress) as progress_cb:
             result = civitai_hub.download(
@@ -98,12 +103,10 @@ def download(
                 force=force,
                 allow_unscanned=allow_unscanned,
                 dry_run=dry_run,
-                progress=not no_progress,
                 progress_cb=progress_cb,
             )
     except CivitaiError as exc:
         _fail(exc)
-        return
 
     if dry_run:
         typer.echo(render_dry_run(result))
@@ -131,11 +134,10 @@ def base(
     """Find base checkpoints matching a model's base model (e.g. for a LoRA)."""
     try:
         matches = civitai_hub.find_base_models(
-            url, version_id=version_id, limit=limit, token=token, cache_dir=cache_dir
+            url, version_id=version_id, limit=limit, token=token
         )
     except CivitaiError as exc:
         _fail(exc)
-        return
 
     if download is not None:
         if not 1 <= download <= len(matches.candidates):
@@ -148,18 +150,16 @@ def base(
             raise typer.Exit(code=2)
         target = matches.candidates[download - 1]
         try:
-            with download_progress(not no_progress) as progress_cb:
+            with download_progress(_progress_enabled(no_progress)) as progress_cb:
                 path = civitai_hub.download(
                     target.id,
                     local_dir=local_dir,
                     cache_dir=cache_dir,
                     token=token,
-                    progress=not no_progress,
                     progress_cb=progress_cb,
                 )
         except CivitaiError as exc:
             _fail(exc)
-            return
         typer.echo(str(path))
         return
 

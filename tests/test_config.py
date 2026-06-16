@@ -32,6 +32,15 @@ def test_defaults(monkeypatch):
 def test_bool_env_parsing(monkeypatch):
     monkeypatch.setenv("CIVITAI_OFFLINE", "1")
     monkeypatch.setenv("CIVITAI_DISABLE_SYMLINKS", "true")
+    monkeypatch.setenv("CIVITAI_NO_PROGRESS", "yes")
     s = resolve_settings()
     assert s.offline is True
     assert s.use_symlinks is False
+    assert s.progress is False
+
+
+def test_flag_overrides_no_progress_env(monkeypatch):
+    # an explicit progress=False (the --no-progress flag) wins; env still honored otherwise
+    monkeypatch.setenv("CIVITAI_NO_PROGRESS", "1")
+    assert resolve_settings(progress=False).progress is False
+    assert resolve_settings().progress is False  # env alone disables it

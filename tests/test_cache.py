@@ -19,7 +19,7 @@ def test_store_creates_blob_and_symlink(tmp_path):
     assert snap.read_bytes() == b"weights"
     blob = store.blob_path(10, f)
     assert blob.exists()
-    assert store.is_cached(10, 100, f) is True
+    assert store.is_cached(10, f) is True
     assert (tmp_path / "CACHEDIR.TAG").exists()
 
 
@@ -52,4 +52,4 @@ def test_copy_fallback_when_symlinks_disabled(tmp_path):
 def test_not_cached_before_store(tmp_path):
     store = CacheStore(tmp_path)
     f = _file(1, "a.safetensors", "A" * 64)
-    assert store.is_cached(10, 100, f) is False
+    assert store.is_cached(10, f) is False
