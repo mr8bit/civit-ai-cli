@@ -61,15 +61,6 @@ def test_429_exhausted_raises_rate_limit():
 
 
 @respx.mock
-def test_get_version_by_hash(version_payload):
-    respx.get(f"{BASE_URL}/model-versions/by-hash/ABC123").mock(
-        return_value=httpx.Response(200, json=version_payload)
-    )
-    v = CivitaiClient().get_version_by_hash("ABC123")
-    assert v.id == 649002
-
-
-@respx.mock
 def test_search_models_parses_items_and_sends_params(model_payload):
     listing = {"items": [model_payload], "metadata": {}}
     route = respx.get(f"{BASE_URL}/models").mock(

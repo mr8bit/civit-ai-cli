@@ -20,26 +20,20 @@ class CivitaiClient:
     def __init__(
         self,
         token: str | None = None,
-        base_url: str = BASE_URL,
-        timeout: float = 30.0,
         max_retries: int = 3,
         backoff_base: float = 0.5,
-        client: httpx.Client | None = None,
     ):
         self.token = token
-        self.base_url = base_url.rstrip("/")
         self.max_retries = max_retries
         self.backoff_base = backoff_base
         headers = {"User-Agent": _USER_AGENT}
         if token:
             headers["Authorization"] = f"Bearer {token}"
         # follow_redirects matters for the download endpoint reusing this client.
-        self.http = client or httpx.Client(
-            timeout=timeout, headers=headers, follow_redirects=True
-        )
+        self.http = httpx.Client(timeout=30.0, headers=headers, follow_redirects=True)
 
     def _get_json(self, path: str, params: dict | None = None) -> dict:
-        url = f"{self.base_url}{path}"
+        url = f"{BASE_URL}{path}"
         for attempt in range(self.max_retries + 1):
             resp = self.http.get(url, params=params)
             retriable = resp.status_code == 429 or resp.status_code >= 500
@@ -71,11 +65,6 @@ class CivitaiClient:
 
     def get_version(self, version_id: int) -> ModelVersion:
         return ModelVersion.model_validate(self._get_json(f"/model-versions/{version_id}"))
-
-    def get_version_by_hash(self, file_hash: str) -> ModelVersion:
-        return ModelVersion.model_validate(
-            self._get_json(f"/model-versions/by-hash/{file_hash}")
-        )
 
     def search_models(
         self,
