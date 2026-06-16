@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-16
+
+### Added
+- **civitai.red mirror support.** Paste a `civitai.red/...` URL and the API *and* downloads route
+  through it automatically; for bare ids / `search`, set `CIVITAI_HOST=civitai.red`. Only the two
+  known mirror hosts (`civitai.com`, `civitai.red`) are trusted, so the token still can't leak to an
+  arbitrary host. Public functions gained a `host=` keyword.
+
 ## [0.3.0] - 2026-06-16
 
 ### Added
@@ -70,7 +78,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are attached to the GitHub release and published to PyPI (trusted publishing); a multi-arch
   Docker image is published to `ghcr.io`.
 
-[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/mr8bit/civit-ai-cli/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mr8bit/civit-ai-cli/compare/v0.1.0...v0.2.0

@@ -21,10 +21,12 @@ class CivitaiClient:
     def __init__(
         self,
         token: str | None = None,
+        host: str = "civitai.com",
         max_retries: int = 3,
         backoff_base: float = 0.5,
     ):
         self.token = token
+        self.base_url = f"https://{host}/api/v1"
         self.max_retries = max_retries
         self.backoff_base = backoff_base
         headers = {"User-Agent": _USER_AGENT}
@@ -34,7 +36,7 @@ class CivitaiClient:
         self.http = httpx.Client(timeout=30.0, headers=headers, follow_redirects=True)
 
     def _get_json(self, path: str, params: dict | None = None) -> dict:
-        url = f"{BASE_URL}{path}"
+        url = f"{self.base_url}{path}"
         for attempt in range(self.max_retries + 1):
             try:
                 resp = self.http.get(url, params=params)

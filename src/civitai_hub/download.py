@@ -11,7 +11,7 @@ import httpx
 
 from .cache import CacheStore, link_or_copy, sha256_file
 from .client import CivitaiClient
-from .config import Settings
+from .config import TRUSTED_HOSTS, Settings
 from .errors import (
     CivitaiError,
     EarlyAccessError,
@@ -36,10 +36,10 @@ def _safe_filename(name: str) -> str:
 
 
 def _require_trusted_host(url: str) -> None:
-    """Download URLs come from API JSON; only fetch (and send the auth header) to
-    civitai.com so a spoofed response can't trigger SSRF or exfiltrate the token."""
+    """Download URLs come from API JSON; only fetch (and send the auth header) to a
+    trusted mirror so a spoofed response can't trigger SSRF or exfiltrate the token."""
     host = urllib.parse.urlsplit(url).hostname or ""
-    if host != "civitai.com" and not host.endswith(".civitai.com"):
+    if not any(host == h or host.endswith("." + h) for h in TRUSTED_HOSTS):
         raise CivitaiError(f"Refusing to download from untrusted host: {host or url!r}")
 
 

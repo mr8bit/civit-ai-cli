@@ -142,8 +142,11 @@ Precedence is **flag → environment variable → default**.
 | Offline (cache only) | — | `CIVITAI_OFFLINE` | off |
 | Copy instead of symlink | `--no-symlinks` (download) | `CIVITAI_DISABLE_SYMLINKS` | symlinks on |
 | Disable progress bar | `--no-progress` (download/base) | `CIVITAI_NO_PROGRESS` | progress on |
+| API host / mirror | — | `CIVITAI_HOST` | `civitai.com` |
 
 The flags live on `download`/`base`; `civitai info` takes only `--version-id`/`--json` and reads the env vars for everything else.
+
+**Mirror (civitai.red).** If civitai.com is blocked for you, paste a `civitai.red/…` URL and the API **and** downloads route through it automatically; for bare ids or `search`, set `CIVITAI_HOST=civitai.red`. Only `civitai.com` and `civitai.red` are trusted, so your token can't be redirected to some other host.
 
 ## How it works
 
