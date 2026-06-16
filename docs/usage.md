@@ -144,8 +144,7 @@ $CIVITAI_HOME/                              # default: ~/.cache/civitai (Linux)
 
 Create an API key at <https://civitai.com/user/account>, then set `CIVITAI_TOKEN` or pass `--token`.
 
-- **Metadata** calls send `Authorization: Bearer <token>`.
-- **Downloads** send the token as a `?token=` query parameter, because CivitAI redirects to a signed CDN host that strips the `Authorization` header.
+- **Metadata** and **download** requests both send `Authorization: Bearer <token>`, and only ever to `civitai.com` (the download URL's host is validated first). On the cross-host CDN redirect httpx drops the header (the CDN URL is already signed), so the token never reaches a third-party host or appears in a URL/log.
 - **Early-access / gated** versions are detected (`availability != "Public"` with a future `earlyAccessEndsAt`) and fail fast with a clear message before any download — these require a CivitAI Supporter entitlement on your account.
 
 ## Library API
@@ -153,18 +152,20 @@ Create an API key at <https://civitai.com/user/account>, then set `CIVITAI_TOKEN
 ```python
 import civitai_hub
 
-def model_info(url_or_id, *, version_id=None, token=None, cache_dir=None) -> ModelInfo: ...
+def model_info(url_or_id, *, version_id=None, token=None) -> ModelInfo: ...
 
 def download(
     url_or_id, *,
     version_id=None, file=None, type=None, format=None, fp=None, size=None, all=False,
     cache_dir=None, local_dir=None, use_symlinks=True,
     token=None, force=False, allow_unscanned=False,
-    dry_run=False, progress=True, progress_cb=None,
+    dry_run=False, progress_cb=None,
 ): ...  # -> Path | list[Path] | list[PlanItem] (when dry_run=True)
+
+def find_base_models(url_or_id, *, version_id=None, limit=10, token=None) -> BaseModelMatches: ...
 ```
 
-`ModelInfo` carries `.model`, `.version`, and `.files`. Pass `progress_cb=lambda downloaded, total: ...` to drive your own progress UI.
+`ModelInfo` carries `.model`, `.version`, and `.files`. `BaseModelMatches` carries `.source`, `.version`, `.base_model`, and `.candidates` (the `civitai base` command's programmatic form). Pass `progress_cb=lambda downloaded, total: ...` to drive your own progress UI.
 
 ## Exit codes
 

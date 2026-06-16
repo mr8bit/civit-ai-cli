@@ -20,7 +20,7 @@ def link_or_copy(src: Path, dest: Path, use_symlinks: bool) -> None:
         try:
             dest.symlink_to(os.path.relpath(src, dest.parent))
             return
-        except OSError:
+        except (OSError, ValueError):  # ValueError: relpath across Windows drives
             pass
     shutil.copy2(src, dest)
 

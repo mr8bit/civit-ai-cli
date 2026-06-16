@@ -13,6 +13,7 @@ from civitai_hub.errors import (
     CivitaiError,
     EarlyAccessError,
     HashMismatchError,
+    NetworkError,
     OfflineError,
 )
 from civitai_hub.models import ModelFile, ModelVersion
@@ -54,7 +55,7 @@ def test_download_verifies_and_caches(tmp_path):
 
 
 @respx.mock
-def test_download_appends_token(tmp_path):
+def test_download_sends_token_as_header_not_url(tmp_path):
     body = b"x"
     version, file = _version_with_payload(body)
     route = respx.get("https://civitai.com/api/download/models/649002").mock(
@@ -64,7 +65,67 @@ def test_download_appends_token(tmp_path):
         CivitaiClient(token="tok"), 10, version, file, CacheStore(tmp_path),
         settings=_settings(tmp_path, token="tok"),
     )
-    assert "token=tok" in str(route.calls.last.request.url)
+    req = route.calls.last.request
+    assert req.headers.get("Authorization") == "Bearer tok"
+    assert "tok" not in str(req.url)  # token must never appear in the URL
+
+
+def test_refuses_unsafe_filename(tmp_path):
+    version, file = _version_with_payload(b"x")
+    file.name = "../../../../tmp/EVIL.txt"
+    with pytest.raises(CivitaiError, match="unsafe filename"):
+        download_file(
+            CivitaiClient(), 10, version, file, CacheStore(tmp_path),
+            settings=_settings(tmp_path),
+        )
+
+
+@respx.mock
+def test_refuses_untrusted_download_host(tmp_path):
+    version, file = _version_with_payload(b"x")
+    file.download_url = "https://attacker.example/grab"
+    with pytest.raises(CivitaiError, match="untrusted host"):
+        download_file(
+            CivitaiClient(token="tok"), 10, version, file, CacheStore(tmp_path),
+            settings=_settings(tmp_path, token="tok"),
+        )
+
+
+@respx.mock
+def test_force_restarts_instead_of_resuming_stale_partial(tmp_path):
+    body = b"the-real-bytes"
+    version, file = _version_with_payload(body)
+    store = CacheStore(tmp_path)
+    tmp = store.incomplete_path(10, file)
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_bytes(b"STALE-GARBAGE")  # a corrupt leftover partial
+
+    seen = {}
+
+    def responder(request):
+        seen["range"] = request.headers.get("Range")
+        return httpx.Response(200, content=body)
+
+    respx.get("https://civitai.com/api/download/models/649002").mock(side_effect=responder)
+    path = download_file(
+        CivitaiClient(), 10, version, file, store,
+        settings=_settings(tmp_path), force=True,
+    )
+    assert seen["range"] is None  # no Range header: restarted from scratch
+    assert path.read_bytes() == body
+
+
+@respx.mock
+def test_network_error_wrapped(tmp_path):
+    version, file = _version_with_payload(b"x")
+    respx.get("https://civitai.com/api/download/models/649002").mock(
+        side_effect=httpx.ConnectError("boom")
+    )
+    with pytest.raises(NetworkError):
+        download_file(
+            CivitaiClient(), 10, version, file, CacheStore(tmp_path),
+            settings=_settings(tmp_path),
+        )
 
 
 @respx.mock

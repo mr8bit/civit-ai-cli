@@ -7,6 +7,7 @@ from .errors import (
     AuthRequiredError,
     CivitaiError,
     ForbiddenError,
+    NetworkError,
     NotFoundError,
     RateLimitError,
 )
@@ -35,7 +36,14 @@ class CivitaiClient:
     def _get_json(self, path: str, params: dict | None = None) -> dict:
         url = f"{BASE_URL}{path}"
         for attempt in range(self.max_retries + 1):
-            resp = self.http.get(url, params=params)
+            try:
+                resp = self.http.get(url, params=params)
+            except httpx.HTTPError as exc:
+                if attempt < self.max_retries:
+                    time.sleep(self.backoff_base * (2**attempt))
+                    continue
+                # `from None`: don't chain the httpx error (its repr can carry the URL).
+                raise NetworkError(f"Network error fetching {path}: {type(exc).__name__}") from None
             retriable = resp.status_code == 429 or resp.status_code >= 500
             if retriable and attempt < self.max_retries:
                 time.sleep(self.backoff_base * (2**attempt))
