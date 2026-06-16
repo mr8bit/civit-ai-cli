@@ -74,6 +74,11 @@ class CivitaiClient:
     def get_version(self, version_id: int) -> ModelVersion:
         return ModelVersion.model_validate(self._get_json(f"/model-versions/{version_id}"))
 
+    def get_version_by_hash(self, file_hash: str) -> ModelVersion:
+        return ModelVersion.model_validate(
+            self._get_json(f"/model-versions/by-hash/{file_hash}")
+        )
+
     def search_models(
         self,
         *,
@@ -81,21 +86,30 @@ class CivitaiClient:
         base_models: str | None = None,
         query: str | None = None,
         sort: str | None = None,
-        limit: int | None = 20,
+        limit: int = 20,
     ) -> list[Model]:
-        params = {
-            k: v
-            for k, v in {
-                "types": types,
-                "baseModels": base_models,
-                "query": query,
-                "sort": sort,
-                "limit": limit,
-            }.items()
-            if v is not None
-        }
-        data = self._get_json("/models", params=params)
-        return [Model.model_validate(item) for item in data.get("items", [])]
+        out: list[Model] = []
+        cursor: str | None = None
+        while len(out) < limit:
+            params = {
+                k: v
+                for k, v in {
+                    "types": types,
+                    "baseModels": base_models,
+                    "query": query,
+                    "sort": sort,
+                    "limit": min(limit - len(out), 100),
+                    "cursor": cursor,
+                }.items()
+                if v is not None
+            }
+            data = self._get_json("/models", params=params)
+            items = data.get("items", [])
+            out.extend(Model.model_validate(item) for item in items)
+            cursor = (data.get("metadata") or {}).get("nextCursor")
+            if not cursor or not items:
+                break
+        return out[:limit]
 
     def close(self) -> None:
         self.http.close()

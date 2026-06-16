@@ -48,6 +48,11 @@ def render_model_info(info: ModelInfo) -> str:
     header.add_row("Base model:", " ".join(filter(None, [v.base_model, v.base_model_type])) or "-")
     header.add_row("Parent model id:", str(v.model_id or m.id))
     header.add_row("Version:", f"{v.name or '-'}  (#{v.id})")
+    if v.availability and v.availability != "Public":
+        note = v.availability
+        if v.early_access_ends_at:
+            note += f" until {v.early_access_ends_at:%Y-%m-%d}"
+        header.add_row("Availability:", f"[yellow]{note}[/yellow]")
     header.add_row("Trigger words:", ", ".join(v.trained_words) or "-")
     header.add_row(
         "Stats:",
@@ -131,3 +136,27 @@ def download_progress(enabled: bool):
 
     with bar:
         yield callback
+
+
+def render_search_results(models, query=None) -> str:
+    title = f"{len(models)} models" + (f" matching '{query}'" if query else "")
+    table = Table(title=title)
+    for col in ["id", "name", "type", "base", "downloads"]:
+        table.add_column(col, justify="right" if col == "downloads" else "left")
+    for m in models:
+        base = m.model_versions[0].base_model if m.model_versions else None
+        downloads = (m.stats or {}).get("downloadCount", 0)
+        table.add_row(str(m.id), m.name, m.type or "-", base or "-", f"{downloads:,}")
+    return _capture(table)
+
+
+def render_cache_list(entries: list[dict], total_bytes: int) -> str:
+    table = Table(title="Cached files")
+    for col in ["model", "version", "file", "size", "sha256"]:
+        table.add_column(col, justify="right" if col == "size" else "left")
+    for e in entries:
+        table.add_row(
+            str(e["model_id"]), str(e["version_id"]), e["filename"],
+            _human_size(e["size_bytes"]), e["sha"][:12],
+        )
+    return _capture(table) + f"\n{len(entries)} file(s), {_human_size(total_bytes)} total."

@@ -1,20 +1,34 @@
 """Typer CLI — a thin wrapper over the library API."""
 import json as _json
+from pathlib import Path
 from typing import NoReturn, Optional
 
 import typer
 
 import civitai_hub
-from .config import resolve_settings
+from .cache import CacheStore, sha256_file
+from .config import (
+    delete_token,
+    resolve_settings,
+    store_token,
+    token_file,
+)
 from .errors import CivitaiError
-from .render import download_progress, render_base_models, render_dry_run, render_model_info
+from .render import (
+    download_progress,
+    render_base_models,
+    render_cache_list,
+    render_dry_run,
+    render_model_info,
+    render_search_results,
+)
 
 
 def _progress_enabled(no_progress: bool) -> bool:
     """Resolve the progress flag honoring --no-progress AND CIVITAI_NO_PROGRESS."""
     return resolve_settings(progress=False if no_progress else None).progress
 
-app = typer.Typer(add_completion=False, help="huggingface_hub, but for CivitAI.")
+app = typer.Typer(help="huggingface_hub, but for CivitAI.")
 
 
 def _fail(exc: CivitaiError) -> NoReturn:
@@ -79,6 +93,8 @@ def download(
     dry_run: bool = typer.Option(False, "--dry-run"),
     allow_unscanned: bool = typer.Option(False, "--allow-unscanned"),
     no_progress: bool = typer.Option(False, "--no-progress"),
+    offline: bool = typer.Option(False, "--offline", help="Serve from cache only; never hit the network"),
+    json: bool = typer.Option(False, "--json", help="Emit JSON (path/size per file)"),
     quiet: bool = typer.Option(False, "-q", "--quiet"),
 ):
     """Download the chosen version's file(s) into the cache (and optional folder)."""
@@ -103,16 +119,26 @@ def download(
                 force=force,
                 allow_unscanned=allow_unscanned,
                 dry_run=dry_run,
+                offline=True if offline else None,
                 progress_cb=progress_cb,
             )
     except CivitaiError as exc:
         _fail(exc)
 
     if dry_run:
-        typer.echo(render_dry_run(result))
+        if json:
+            typer.echo(_json.dumps(
+                [{"file_name": p.file_name, "size_bytes": p.size_bytes, "cached": p.cached}
+                 for p in result], indent=2))
+        else:
+            typer.echo(render_dry_run(result))
         return
     paths = result if isinstance(result, list) else [result]
-    if not quiet:
+    if json:
+        typer.echo(_json.dumps(
+            [{"path": str(p), "filename": p.name, "size_bytes": p.stat().st_size}
+             for p in paths], indent=2))
+    elif not quiet:
         for p in paths:
             typer.echo(str(p))
 
@@ -175,3 +201,127 @@ def base(
         typer.echo(_json.dumps(payload, default=str, indent=2))
     else:
         typer.echo(render_base_models(matches))
+
+
+@app.command()
+def search(
+    query: Optional[str] = typer.Argument(None, help="Search text"),
+    type: Optional[str] = typer.Option(None, "--type", help="Checkpoint / LORA / ..."),
+    base_model: Optional[str] = typer.Option(None, "--base-model", help="e.g. Pony, SDXL 1.0"),
+    sort: str = typer.Option("Most Downloaded", "--sort"),
+    limit: int = typer.Option(20, "--limit"),
+    token: Optional[str] = typer.Option(None, "--token"),
+    json: bool = typer.Option(False, "--json"),
+):
+    """Search CivitAI models."""
+    try:
+        models = civitai_hub.search(
+            query, type=type, base_model=base_model, sort=sort, limit=limit, token=token
+        )
+    except CivitaiError as exc:
+        _fail(exc)
+    if json:
+        typer.echo(_json.dumps([m.model_dump(by_alias=True) for m in models], default=str, indent=2))
+    else:
+        typer.echo(render_search_results(models, query))
+
+
+@app.command("by-hash")
+def by_hash(
+    hash_or_file: str = typer.Argument(..., help="A SHA256/AutoV2 hash, or a path to a local file"),
+    token: Optional[str] = typer.Option(None, "--token"),
+    json: bool = typer.Option(False, "--json"),
+):
+    """Identify a model from a file hash (or a local file)."""
+    target = Path(hash_or_file)
+    file_hash = sha256_file(target) if target.is_file() else hash_or_file
+    try:
+        info = civitai_hub.find_by_hash(file_hash, token=token)
+    except CivitaiError as exc:
+        _fail(exc)
+    if json:
+        typer.echo(_json.dumps(
+            {"model": info.model.model_dump(by_alias=True),
+             "version": info.version.model_dump(by_alias=True)},
+            default=str, indent=2))
+    else:
+        typer.echo(render_model_info(info))
+
+
+@app.command()
+def login(token: Optional[str] = typer.Option(None, "--token", help="API key (prompted if omitted)")):
+    """Store a CivitAI API token for future commands."""
+    if not token:
+        token = typer.prompt("CivitAI API token", hide_input=True)
+    path = store_token(token)
+    typer.echo(f"Token saved to {path}")
+
+
+@app.command()
+def logout():
+    """Remove the stored API token."""
+    typer.echo("Token removed." if delete_token() else "No stored token.")
+
+
+@app.command("config")
+def config_show():
+    """Show the resolved configuration."""
+    s = resolve_settings()
+    tf = token_file()
+    typer.echo(f"cache_dir:  {s.cache_dir}")
+    typer.echo(f"token:      {'set' if s.token else 'none'}")
+    typer.echo(f"token_file: {tf} {'(exists)' if tf.exists() else '(none)'}")
+    typer.echo(f"offline:    {s.offline}")
+    typer.echo(f"symlinks:   {s.use_symlinks}")
+    typer.echo(f"progress:   {s.progress}")
+
+
+cache_app = typer.Typer(help="Inspect and manage the local cache.")
+app.add_typer(cache_app, name="cache")
+
+
+def _store(cache_dir: Optional[str]) -> CacheStore:
+    return CacheStore(resolve_settings(cache_dir=cache_dir).cache_dir)
+
+
+@cache_app.command("ls")
+def cache_ls(
+    cache_dir: Optional[str] = typer.Option(None, "--cache-dir"),
+    json: bool = typer.Option(False, "--json"),
+):
+    """List cached files."""
+    store = _store(cache_dir)
+    entries = store.iter_entries()
+    if json:
+        typer.echo(_json.dumps(entries, indent=2))
+    else:
+        typer.echo(render_cache_list(entries, store.total_size()))
+
+
+@cache_app.command("verify")
+def cache_verify(cache_dir: Optional[str] = typer.Option(None, "--cache-dir")):
+    """Re-hash cached blobs and report corruption."""
+    results = _store(cache_dir).verify()
+    bad = [b for b, ok in results if not ok]
+    for b in bad:
+        typer.secho(f"CORRUPT: {b}", fg=typer.colors.RED, err=True)
+    typer.echo(f"{len(results)} blob(s) checked, {len(bad)} corrupt.")
+    if bad:
+        raise typer.Exit(code=1)
+
+
+@cache_app.command("rm")
+def cache_rm(
+    model_id: int = typer.Argument(..., help="Model id to evict from the cache"),
+    cache_dir: Optional[str] = typer.Option(None, "--cache-dir"),
+):
+    """Remove a model's cached files."""
+    removed = _store(cache_dir).remove_model(model_id)
+    typer.echo(f"Removed model {model_id}." if removed else f"Model {model_id} is not cached.")
+
+
+@cache_app.command("prune")
+def cache_prune(cache_dir: Optional[str] = typer.Option(None, "--cache-dir")):
+    """Remove leftover temp files and dangling links."""
+    stats = _store(cache_dir).prune()
+    typer.echo(f"Pruned {stats['temps']} temp(s), {stats['dangling_snapshots']} dangling link(s).")

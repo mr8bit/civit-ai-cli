@@ -6,6 +6,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-16
+
+### Added
+- **`civitai search`** — search models (`--type`/`--base-model`/`--sort`/`--limit`/`--json`), with
+  cursor pagination in the client. Library: `civitai_hub.search()`.
+- **`civitai by-hash <hash|file>`** — identify a model from a SHA256/AutoV2 hash or a local file
+  (reverse of download). Library: `civitai_hub.find_by_hash()`.
+- **`civitai login` / `logout` / `config`** — store the API token (0600 file in the config dir;
+  precedence flag > env > stored), and show the resolved configuration.
+- **`civitai cache ls / verify / rm / prune`** — inspect, re-hash, evict, and tidy the local cache.
+- **`download --json`** (path/size per file) and **`download --offline`** (cache-only).
+- `info` now surfaces early-access / non-public availability up front.
+- Ship `py.typed` (PEP 561) so importers get the package's type hints.
+
 ## [0.2.1] - 2026-06-16
 
 ### Fixed
@@ -56,7 +70,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are attached to the GitHub release and published to PyPI (trusted publishing); a multi-arch
   Docker image is published to `ghcr.io`.
 
-[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mr8bit/civit-ai-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr8bit/civit-ai-cli/releases/tag/v0.1.0

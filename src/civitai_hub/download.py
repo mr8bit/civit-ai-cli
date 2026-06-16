@@ -1,6 +1,5 @@
 """Download a single file: availability + scan gates, stream+resume, verify,
 store, materialize."""
-import hashlib
 import logging
 import os
 import urllib.parse
@@ -10,7 +9,7 @@ from typing import Callable
 
 import httpx
 
-from .cache import CacheStore, link_or_copy
+from .cache import CacheStore, link_or_copy, sha256_file
 from .client import CivitaiClient
 from .config import Settings
 from .errors import (
@@ -128,11 +127,7 @@ def _verify(tmp: Path, file: ModelFile) -> None:
     if not expected:
         logger.warning("No SHA256 for %s; skipping verification.", file.name)
         return
-    digest = hashlib.sha256()
-    with open(tmp, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            digest.update(chunk)
-    actual = digest.hexdigest().upper()
+    actual = sha256_file(tmp)
     if actual != expected.upper():
         tmp.unlink(missing_ok=True)
         raise HashMismatchError(

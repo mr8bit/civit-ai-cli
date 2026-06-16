@@ -1,9 +1,21 @@
 """Content-addressed cache: blobs/<sha256> + snapshots/<versionId>/<name> links."""
+import hashlib
 import os
 import shutil
 from pathlib import Path
 
 from .models import ModelFile
+
+_SHA_RE = set("0123456789abcdefABCDEF")
+
+
+def sha256_file(path) -> str:
+    """Streamed SHA256 of a file as uppercase hex."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest().upper()
 
 _CACHEDIR_TAG = (
     "Signature: 8a477f597d28d172789f06886806bc55\n"
@@ -62,3 +74,64 @@ class CacheStore:
         snap.parent.mkdir(parents=True, exist_ok=True)
         link_or_copy(blob, snap, self.use_symlinks)
         return snap
+
+    def _models_root(self) -> Path:
+        return self.root / "models"
+
+    def iter_entries(self) -> list[dict]:
+        """One row per cached file (snapshot), with its blob sha and size."""
+        out = []
+        if not self._models_root().exists():
+            return out
+        for model_dir in sorted(self._models_root().iterdir()):
+            if not model_dir.name.isdigit():
+                continue
+            snaps = model_dir / "snapshots"
+            if not snaps.exists():
+                continue
+            for ver_dir in sorted(snaps.iterdir()):
+                for f in sorted(ver_dir.iterdir()):
+                    out.append({
+                        "model_id": int(model_dir.name),
+                        "version_id": ver_dir.name,
+                        "filename": f.name,
+                        "size_bytes": f.stat().st_size if f.exists() else 0,
+                        "sha": f.resolve().name if f.is_symlink() else "(copy)",
+                    })
+        return out
+
+    def total_size(self) -> int:
+        return sum(
+            b.stat().st_size
+            for b in self._models_root().glob("*/blobs/*")
+            if b.is_file() and not b.name.endswith(".incomplete")
+        )
+
+    def verify(self) -> list[tuple[Path, bool]]:
+        """Re-hash every sha256-named blob; ok when content matches the name."""
+        results = []
+        for blob in self._models_root().glob("*/blobs/*"):
+            name = blob.name
+            if len(name) != 64 or not set(name) <= _SHA_RE:
+                continue  # skip file-<id> (hashless) blobs and .incomplete temps
+            results.append((blob, sha256_file(blob) == name.upper()))
+        return results
+
+    def remove_model(self, model_id: int) -> bool:
+        model_dir = self._model_dir(model_id)
+        if model_dir.exists():
+            shutil.rmtree(model_dir)
+            return True
+        return False
+
+    def prune(self) -> dict:
+        """Remove leftover .incomplete temps and dangling snapshot symlinks."""
+        temps = snaps = 0
+        for tmp in self._models_root().glob("*/blobs/*.incomplete"):
+            tmp.unlink(missing_ok=True)
+            temps += 1
+        for snap in self._models_root().glob("*/snapshots/*/*"):
+            if snap.is_symlink() and not snap.resolve().exists():
+                snap.unlink()
+                snaps += 1
+        return {"temps": temps, "dangling_snapshots": snaps}
