@@ -49,7 +49,7 @@ docker run --rm ghcr.io/mr8bit/civit-ai-cli info 580857
 **From a GitHub release** (without PyPI) — pin a tag from the [releases page](https://github.com/mr8bit/civit-ai-cli/releases):
 
 ```bash
-pipx install "git+https://github.com/mr8bit/civit-ai-cli@v0.2.1"
+pipx install "git+https://github.com/mr8bit/civit-ai-cli@v0.3.0"
 ```
 
 For development from a clone:
