@@ -8,7 +8,7 @@ from .models import BaseModelMatches, Model, ModelInfo, ModelVersion, PlanItem
 from .resolver import FileSelectors, pick_files, pick_version
 from .urls import parse_model_url
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["model_info", "download", "find_base_models", "ModelInfo", "PlanItem", "BaseModelMatches", "__version__"]
 
 
