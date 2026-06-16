@@ -199,6 +199,14 @@ def test_cli_login_config_logout(monkeypatch, tmp_path):
     assert "No stored token" in runner.invoke(app, ["logout"]).stdout
 
 
+def test_cli_config_shows_host(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    monkeypatch.setenv("CIVITAI_HOST", "civitai.red")
+    result = runner.invoke(app, ["config"])
+    assert result.exit_code == 0
+    assert "host:       civitai.red" in result.stdout
+
+
 @respx.mock
 def test_cli_cache_ls_rm_prune(monkeypatch, tmp_path):
     _env(monkeypatch, tmp_path)
