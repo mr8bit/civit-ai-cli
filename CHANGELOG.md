@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-16
+
 ### Security
 - Reject path-traversal / absolute filenames supplied by the API before building any path
   (could otherwise write outside the cache / `--local-dir`).
@@ -42,5 +44,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are attached to the GitHub release and published to PyPI (trusted publishing); a multi-arch
   Docker image is published to `ghcr.io`.
 
-[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mr8bit/civit-ai-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr8bit/civit-ai-cli/releases/tag/v0.1.0
