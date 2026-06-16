@@ -7,6 +7,7 @@ Full reference for the `civitai` CLI and the `civitai_hub` library. For a quick 
 - [Accepted URLs / ids](#accepted-urls--ids)
 - [`civitai info`](#civitai-info)
 - [`civitai download`](#civitai-download)
+- [`civitai base`](#civitai-base)
 - [File selection rules](#file-selection-rules)
 - [The cache](#the-cache)
 - [Authentication & gated content](#authentication--gated-content)
@@ -71,6 +72,43 @@ civitai download <url|id>
 | `-q, --quiet` | Suppress the printed path(s). |
 
 The resulting local path(s) are written to **stdout**; the progress bar renders on **stderr**, so `$(civitai download …)` captures just the path.
+
+## `civitai base`
+
+Find the **base checkpoints** a model (typically a LoRA) runs on.
+
+```
+civitai base <url|id>
+    [--version-id N] [--limit 10] [--json]
+    [--download N] [-o, --local-dir DIR] [--cache-dir DIR] [--token TOK] [--no-progress]
+```
+
+CivitAI only records a model's base model as a **family string** (`baseModel`, e.g. `Pony`, `SDXL 1.0`, `ZImageBase`) — there is **no direct link** from a LoRA to the exact checkpoint it was trained on. So `base` reads that family and searches CivitAI for checkpoints of the same family (`GET /api/v1/models?types=Checkpoint&baseModels=<family>&sort=Most Downloaded`), most-downloaded first:
+
+```console
+$ civitai base 580857 --limit 3
+For:        Realistic Skin Texture style ... (#580857, LORA)
+Base model: ZImageBase
+Matches:    3 checkpoints
+┏━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ # ┃ id      ┃ name                         ┃ base       ┃ downloads ┃
+┡━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ 1 │ 958009  │ RedCraft | 红潮 | ERNIE …    │ ZImageBase │   240,687 │
+│ 2 │ 2384856 │ Moody Wild Mix (ZIB/ZID)     │ ZImageBase │    36,692 │
+│ 3 │ 2342797 │ Z Image Base                 │ ZImageBase │    16,186 │
+└───┴─────────┴──────────────────────────────┴────────────┴───────────┘
+```
+
+| Flag | Effect |
+|---|---|
+| `--limit N` | How many checkpoints to list (default 10). |
+| `--json` | Machine-readable output (`{"source": ..., "candidates": [...]}`). |
+| `--download N` | Download the **Nth listed** checkpoint (1-based) — equivalent to `civitai download <that id>`. |
+| `-o, --local-dir` / `--cache-dir` / `--token` / `--no-progress` | As for `download`, applied to the `--download` fetch. |
+
+So the full loop is: `civitai base <lora>` → pick a number → `civitai base <lora> --download <N> -o <your models folder>` (or copy the listed id into `civitai download <id>`).
+
+> Note: the displayed list is "most downloaded" of that family — popularity, not a guarantee of compatibility. Pick the checkpoint that matches your intended style/version.
 
 ## File selection rules
 

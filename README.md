@@ -16,6 +16,7 @@ $ civitai download https://civitai.com/models/580857 --fp16 -o ~/ComfyUI/models/
 
 - **Inspect before you fetch** — `civitai info <url>` shows the model type, base/parent model, versions, and a table of every file (size, format, precision, hash, scan status).
 - **Smart, scriptable downloads** — picks the URL-pinned version (or the latest) and its primary file by default; override with `--version-id`, `--fp16/--fp32`, `--pruned/--full`, `--format`, `--file`, or grab everything with `--all`.
+- **Find the base model** — `civitai base <lora-url>` lists the checkpoints a LoRA's base-model family runs on (CivitAI only exposes the family name, not a direct link), with `--download N` to grab one.
 - **Managed cache like HF Hub** — content-addressed blobs keyed by SHA256, with per-version snapshot symlinks. The same file reused across versions is stored once. Re-downloads are skipped.
 - **Resumable & verified** — HTTP range-resume for interrupted downloads, automatic SHA256 verification, and a live progress bar.
 - **Library + CLI** — everything the CLI does is a one-line call from Python.
@@ -54,6 +55,10 @@ civitai download 580857 --dry-run
 
 # Grab every file in the version
 civitai download 580857 --all
+
+# Find the base checkpoints a LoRA runs on, then grab one
+civitai base 580857
+civitai base 580857 --download 1 -o ~/ComfyUI/models/checkpoints
 ```
 
 The downloaded path is printed to **stdout** (the progress bar goes to stderr), so it pipes cleanly:
