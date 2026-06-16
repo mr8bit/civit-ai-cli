@@ -6,7 +6,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.3.1] - 2026-06-16
+## [0.3.1] - 2026-06-17
 
 ### Added
 - **civitai.red mirror support.** Paste a `civitai.red/...` URL and the API *and* downloads route
