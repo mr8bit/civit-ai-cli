@@ -8,8 +8,11 @@ from .models import BaseModelMatches, Model, ModelInfo, ModelVersion, PlanItem
 from .resolver import FileSelectors, pick_files, pick_version
 from .urls import parse_model_url
 
-__version__ = "0.2.1"
-__all__ = ["model_info", "download", "find_base_models", "ModelInfo", "PlanItem", "BaseModelMatches", "__version__"]
+__version__ = "0.3.0"
+__all__ = [
+    "model_info", "download", "find_base_models", "search", "find_by_hash",
+    "ModelInfo", "PlanItem", "BaseModelMatches", "__version__",
+]
 
 
 def _resolve(client: CivitaiClient, ref, version_id) -> tuple[Model, ModelVersion]:
@@ -49,10 +52,11 @@ def download(
     force=False,
     allow_unscanned=False,
     dry_run=False,
+    offline=None,
     progress_cb=None,
 ):
     settings = resolve_settings(
-        token=token, cache_dir=cache_dir, use_symlinks=use_symlinks
+        token=token, cache_dir=cache_dir, use_symlinks=use_symlinks, offline=offline
     )
     ref = parse_model_url(str(url_or_id))
     selectors = FileSelectors(
@@ -101,3 +105,24 @@ def find_base_models(
         return BaseModelMatches(
             source=model, version=version, base_model=family, candidates=candidates
         )
+
+
+def search(
+    query=None, *, type=None, base_model=None, sort="Most Downloaded", limit=20, token=None
+) -> list[Model]:
+    settings = resolve_settings(token=token)
+    with CivitaiClient(token=settings.token) as client:
+        return client.search_models(
+            types=type, base_models=base_model, query=query, sort=sort, limit=limit
+        )
+
+
+def find_by_hash(file_hash, *, token=None) -> ModelInfo:
+    """Identify a file by its SHA256 (or AutoV2) hash — the reverse of download."""
+    settings = resolve_settings(token=token)
+    with CivitaiClient(token=settings.token) as client:
+        version = client.get_version_by_hash(str(file_hash))
+        if version.model_id is None:
+            raise NotFoundError(f"No CivitAI model found for hash {file_hash}.")
+        model = client.get_model(version.model_id)
+        return ModelInfo(model=model, version=version, files=list(version.files))

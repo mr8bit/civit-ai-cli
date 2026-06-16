@@ -8,6 +8,10 @@ Full reference for the `civitai` CLI and the `civitai_hub` library. For a quick 
 - [`civitai info`](#civitai-info)
 - [`civitai download`](#civitai-download)
 - [`civitai base`](#civitai-base)
+- [`civitai search`](#civitai-search)
+- [`civitai by-hash`](#civitai-by-hash)
+- [`civitai login` / `logout` / `config`](#civitai-login--logout--config)
+- [`civitai cache`](#civitai-cache)
 - [File selection rules](#file-selection-rules)
 - [The cache](#the-cache)
 - [Authentication & gated content](#authentication--gated-content)
@@ -110,6 +114,41 @@ So the full loop is: `civitai base <lora>` → pick a number → `civitai base <
 
 > Note: the displayed list is "most downloaded" of that family — popularity, not a guarantee of compatibility. Pick the checkpoint that matches your intended style/version.
 
+## `civitai search`
+
+```
+civitai search [QUERY] [--type T] [--base-model B] [--sort S] [--limit N] [--token TOK] [--json]
+```
+
+Search CivitAI models from the terminal. `--type` (Checkpoint/LORA/…), `--base-model` (e.g. `Pony`, `SDXL 1.0`), `--sort` (`Most Downloaded`/`Highest Rated`/`Newest`), `--limit` (paginates past one page if needed). Prints a table (id · name · type · base · downloads) or `--json`.
+
+## `civitai by-hash`
+
+```
+civitai by-hash <SHA256 | AutoV2 | path/to/file> [--token TOK] [--json]
+```
+
+Identify a model from a hash, or from a **local file** (it computes the SHA256 and looks it up) — the reverse of `download`. Useful for "what is this orphaned `.safetensors`?". Prints the same view as `info`.
+
+## `civitai login` / `logout` / `config`
+
+```
+civitai login [--token TOK]     # prompts if --token omitted; saves to a 0600 file in the config dir
+civitai logout                  # deletes the stored token
+civitai config                  # show resolved cache dir, token presence, flags
+```
+
+Token precedence is **`--token` flag > `CIVITAI_TOKEN` env > stored login file > anonymous**.
+
+## `civitai cache`
+
+```
+civitai cache ls [--json]       # list cached files (model · version · file · size · sha)
+civitai cache verify            # re-hash every blob; non-zero exit if any is corrupt
+civitai cache rm <modelId>      # evict a model's cached files
+civitai cache prune             # remove leftover .incomplete temps and dangling links
+```
+
 ## File selection rules
 
 A CivitAI version can bundle several files (a full + pruned checkpoint, fp16/fp32, a VAE, a training-data zip…). Selection works as follows:
@@ -183,6 +222,7 @@ The CLI prints a clean error (no traceback) to stderr and exits with:
 | 7 | download corrupted (SHA256 mismatch) |
 | 8 | offline and not cached |
 | 9 | rate limited (`429`) |
+| 10 | network/transport error (connection/timeout) |
 
 ## Troubleshooting
 

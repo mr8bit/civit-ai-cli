@@ -24,6 +24,8 @@ $ civitai download https://civitai.com/models/580857 --fp16 -o ~/ComfyUI/models/
 - **Inspect before you fetch** — `civitai info <url>` shows the model type, base/parent model, the selected version, and a table of every file in it (size, format, precision, hash, scan status).
 - **Smart, scriptable downloads** — picks the URL-pinned version (or the latest) and its primary file by default; override with `--version-id`, `--fp16/--fp32`, `--pruned/--full`, `--format`, `--file`, or grab everything with `--all`.
 - **Find the base model** — `civitai base <lora-url>` lists the checkpoints a LoRA's base-model family runs on (CivitAI only exposes the family name, not a direct link), with `--download N` to grab one.
+- **Discover & identify** — `civitai search` finds models from the terminal; `civitai by-hash <file>` tells you what an orphaned `.safetensors` actually is.
+- **Manage it** — `civitai cache ls/verify/rm/prune` for the local store, `civitai login` to save your token, `--json` on every command for scripting.
 - **Managed cache like HF Hub** — content-addressed blobs keyed by SHA256, with per-version snapshot symlinks. The same file reused across versions is stored once. Re-downloads are skipped.
 - **Resumable & verified** — HTTP range-resume for interrupted downloads, automatic SHA256 verification, and a live progress bar.
 - **Library + CLI** — everything the CLI does is a one-line call from Python.
@@ -79,6 +81,16 @@ civitai download 580857 --all
 # Find the base checkpoints a LoRA runs on, then grab one
 civitai base 580857
 civitai base 580857 --download 1 -o ~/ComfyUI/models/checkpoints
+
+# Search, then identify a mystery file on disk
+civitai search "realistic" --type Checkpoint --base-model "SDXL 1.0" --limit 10
+civitai by-hash ~/ComfyUI/models/loras/mystery.safetensors
+
+# Save your token; manage the cache
+civitai login                       # prompts for the API key (or --token)
+civitai cache ls
+civitai cache verify
+civitai cache rm 580857
 ```
 
 <p align="center">
