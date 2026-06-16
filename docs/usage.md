@@ -33,6 +33,8 @@ Every command accepts any of these for its first argument:
 
 The slug is cosmetic and ignored. A `--version-id` flag overrides any version implied by the URL.
 
+**Mirror.** `civitai.red` URLs (a transparent CivitAI proxy) are accepted identically and route the API + downloads through that host automatically. For bare ids or `search`, set `CIVITAI_HOST=civitai.red`. Only `civitai.com` and `civitai.red` are trusted.
+
 ## `civitai info`
 
 ```

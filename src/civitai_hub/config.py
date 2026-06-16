@@ -5,6 +5,13 @@ from pathlib import Path
 
 import platformdirs
 
+from .errors import CivitaiError
+
+# civitai.red is a transparent mirror/reverse-proxy of civitai.com (same API
+# paths and ids). The list is the single source of truth for which hosts we'll
+# talk to and send the token to — restricting it keeps the SSRF/token guard meaningful.
+TRUSTED_HOSTS = ("civitai.com", "civitai.red")
+
 
 @dataclass
 class Settings:
@@ -13,6 +20,7 @@ class Settings:
     offline: bool
     use_symlinks: bool
     progress: bool
+    host: str = "civitai.com"
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -29,6 +37,7 @@ def resolve_settings(
     offline: bool | None = None,
     use_symlinks: bool | None = None,
     progress: bool | None = None,
+    host: str | None = None,
 ) -> Settings:
     resolved_token = token or os.environ.get("CIVITAI_TOKEN") or read_stored_token()
     resolved_cache = (
@@ -36,6 +45,11 @@ def resolve_settings(
         or os.environ.get("CIVITAI_HOME")
         or platformdirs.user_cache_dir("civitai")
     )
+    resolved_host = host or os.environ.get("CIVITAI_HOST") or "civitai.com"
+    if resolved_host not in TRUSTED_HOSTS:
+        raise CivitaiError(
+            f"Unsupported host {resolved_host!r}. Allowed: {', '.join(TRUSTED_HOSTS)}."
+        )
     return Settings(
         token=resolved_token,
         cache_dir=Path(resolved_cache).expanduser(),
@@ -46,6 +60,7 @@ def resolve_settings(
             else not _env_bool("CIVITAI_DISABLE_SYMLINKS")
         ),
         progress=progress if progress is not None else not _env_bool("CIVITAI_NO_PROGRESS"),
+        host=resolved_host,
     )
 
 

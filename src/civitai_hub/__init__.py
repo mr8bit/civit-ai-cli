@@ -8,7 +8,7 @@ from .models import BaseModelMatches, Model, ModelInfo, ModelVersion, PlanItem
 from .resolver import FileSelectors, pick_files, pick_version
 from .urls import parse_model_url
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __all__ = [
     "model_info", "download", "find_base_models", "search", "find_by_hash",
     "ModelInfo", "PlanItem", "BaseModelMatches", "__version__",
@@ -27,10 +27,10 @@ def _resolve(client: CivitaiClient, ref, version_id) -> tuple[Model, ModelVersio
     return model, pick_version(model, pinned)
 
 
-def model_info(url_or_id, *, version_id=None, token=None) -> ModelInfo:
-    settings = resolve_settings(token=token)
+def model_info(url_or_id, *, version_id=None, token=None, host=None) -> ModelInfo:
+    settings = resolve_settings(token=token, host=host)
     ref = parse_model_url(str(url_or_id))
-    with CivitaiClient(token=settings.token) as client:
+    with CivitaiClient(token=settings.token, host=ref.host or settings.host) as client:
         model, version = _resolve(client, ref, version_id)
         return ModelInfo(model=model, version=version, files=list(version.files))
 
@@ -53,17 +53,18 @@ def download(
     allow_unscanned=False,
     dry_run=False,
     offline=None,
+    host=None,
     progress_cb=None,
 ):
     settings = resolve_settings(
-        token=token, cache_dir=cache_dir, use_symlinks=use_symlinks, offline=offline
+        token=token, cache_dir=cache_dir, use_symlinks=use_symlinks, offline=offline, host=host
     )
     ref = parse_model_url(str(url_or_id))
     selectors = FileSelectors(
         file_name=file, type=type, format=format, size=size, fp=fp, all=all
     )
     store = CacheStore(settings.cache_dir, use_symlinks=settings.use_symlinks)
-    with CivitaiClient(token=settings.token) as client:
+    with CivitaiClient(token=settings.token, host=ref.host or settings.host) as client:
         model, version = _resolve(client, ref, version_id)
         chosen = pick_files(version, selectors)
 
@@ -90,11 +91,11 @@ def download(
 
 
 def find_base_models(
-    url_or_id, *, version_id=None, limit=10, token=None
+    url_or_id, *, version_id=None, limit=10, token=None, host=None
 ) -> BaseModelMatches:
-    settings = resolve_settings(token=token)
+    settings = resolve_settings(token=token, host=host)
     ref = parse_model_url(str(url_or_id))
-    with CivitaiClient(token=settings.token) as client:
+    with CivitaiClient(token=settings.token, host=ref.host or settings.host) as client:
         model, version = _resolve(client, ref, version_id)
         family = version.base_model
         candidates = []
@@ -108,19 +109,20 @@ def find_base_models(
 
 
 def search(
-    query=None, *, type=None, base_model=None, sort="Most Downloaded", limit=20, token=None
+    query=None, *, type=None, base_model=None, sort="Most Downloaded", limit=20,
+    token=None, host=None,
 ) -> list[Model]:
-    settings = resolve_settings(token=token)
-    with CivitaiClient(token=settings.token) as client:
+    settings = resolve_settings(token=token, host=host)
+    with CivitaiClient(token=settings.token, host=settings.host) as client:
         return client.search_models(
             types=type, base_models=base_model, query=query, sort=sort, limit=limit
         )
 
 
-def find_by_hash(file_hash, *, token=None) -> ModelInfo:
+def find_by_hash(file_hash, *, token=None, host=None) -> ModelInfo:
     """Identify a file by its SHA256 (or AutoV2) hash — the reverse of download."""
-    settings = resolve_settings(token=token)
-    with CivitaiClient(token=settings.token) as client:
+    settings = resolve_settings(token=token, host=host)
+    with CivitaiClient(token=settings.token, host=settings.host) as client:
         version = client.get_version_by_hash(str(file_hash))
         if version.model_id is None:
             raise NotFoundError(f"No CivitAI model found for hash {file_hash}.")
