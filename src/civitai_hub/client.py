@@ -96,3 +96,12 @@ class CivitaiClient:
         }
         data = self._get_json("/models", params=params)
         return [Model.model_validate(item) for item in data.get("items", [])]
+
+    def close(self) -> None:
+        self.http.close()
+
+    def __enter__(self) -> "CivitaiClient":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()

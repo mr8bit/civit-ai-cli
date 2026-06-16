@@ -25,6 +25,7 @@ def test_render_dry_run_lists_files_and_total():
     assert "a.safetensors" in text
     assert "b.safetensors" in text
     assert "cached" in text.lower()
+    assert "Will download 1 file(s), 1.0 MB total." in text  # only the uncached file counts
 
 
 def test_download_progress_disabled_yields_none():
