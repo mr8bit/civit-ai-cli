@@ -1,8 +1,10 @@
-# Publishes the package to PyPI when a GitHub Release is published.
-#
-# Uses PyPI Trusted Publishing (OIDC) — no API token to store. Before the first
-# release, configure a trusted publisher for this repo on PyPI:
-#   https://docs.pypi.org/trusted-publishers/  (workflow: publish.yml, env: pypi)
+# Runs when a GitHub Release is published:
+#  - github-release: build the wheel + sdist and attach them to the release
+#    (always works — uses the built-in GITHUB_TOKEN). This makes the package
+#    pip-installable straight from GitHub, no PyPI required.
+#  - pypi: also publish to PyPI via Trusted Publishing (OIDC). Configure a
+#    trusted publisher first: https://docs.pypi.org/trusted-publishers/
+#    (project: civitai-hub, workflow: publish.yml, environment: pypi).
 name: Publish
 
 on:
@@ -13,6 +15,25 @@ permissions:
   contents: read
 
 jobs:
+  github-release:
+    name: Attach wheel + sdist to the GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+      - name: Upload artifacts to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
+
   pypi:
     name: Build & publish to PyPI
     runs-on: ubuntu-latest

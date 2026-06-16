@@ -19,8 +19,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Importable library API: `civitai_hub.model_info`, `civitai_hub.download`, `civitai_hub.find_base_models`.
 - Configuration via flags and `CIVITAI_TOKEN` / `CIVITAI_HOME` / `CIVITAI_OFFLINE` /
   `CIVITAI_DISABLE_SYMLINKS` / `CIVITAI_NO_PROGRESS`.
-- GitHub Actions: CI (`ruff` + `pytest` on Python 3.10–3.13), PyPI publish (trusted publishing),
-  and a multi-arch Docker image published to `ghcr.io`.
+- GitHub Actions: CI (`ruff` + `pytest` on Python 3.10–3.13); on each release the wheel + sdist
+  are attached to the GitHub release and published to PyPI (trusted publishing); a multi-arch
+  Docker image is published to `ghcr.io`.
 
 [Unreleased]: https://github.com/mr8bit/civit-ai-cli/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/mr8bit/civit-ai-cli/releases/tag/v0.1.0

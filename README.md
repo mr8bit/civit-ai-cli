@@ -24,9 +24,19 @@ $ civitai download https://civitai.com/models/580857 --fp16 -o ~/ComfyUI/models/
 
 ## Install
 
+**From the GitHub release** (available now):
+
+```bash
+# straight from the tag
+pipx install "git+https://github.com/mr8bit/civit-ai-cli@v0.1.0"
+# or the prebuilt wheel attached to the release
+pipx install "https://github.com/mr8bit/civit-ai-cli/releases/download/v0.1.0/civitai_hub-0.1.0-py3-none-any.whl"
+```
+
+**From PyPI** (once published):
+
 ```bash
 pipx install civitai-hub        # isolated CLI (recommended)
-# or
 pip install civitai-hub         # into the current environment
 ```
 
