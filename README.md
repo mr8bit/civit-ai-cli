@@ -31,20 +31,23 @@ $ civitai download https://civitai.com/models/580857 --fp16 -o ~/ComfyUI/models/
 
 ## Install
 
-**From the GitHub release** (available now):
+**From PyPI** (recommended):
 
 ```bash
-# straight from the tag
-pipx install "git+https://github.com/mr8bit/civit-ai-cli@v0.1.0"
-# or the prebuilt wheel attached to the release
-pipx install "https://github.com/mr8bit/civit-ai-cli/releases/download/v0.1.0/civitai_hub-0.1.0-py3-none-any.whl"
+pipx install civitai-hub        # isolated CLI
+pip install civitai-hub         # into the current environment
 ```
 
-**From PyPI** (once published):
+**With Docker** — no install needed:
 
 ```bash
-pipx install civitai-hub        # isolated CLI (recommended)
-pip install civitai-hub         # into the current environment
+docker run --rm ghcr.io/mr8bit/civit-ai-cli info 580857
+```
+
+**From a GitHub release** (without PyPI) — pin a tag from the [releases page](https://github.com/mr8bit/civit-ai-cli/releases):
+
+```bash
+pipx install "git+https://github.com/mr8bit/civit-ai-cli@v0.2.1"
 ```
 
 For development from a clone:
