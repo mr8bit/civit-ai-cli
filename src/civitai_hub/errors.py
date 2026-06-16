@@ -43,3 +43,7 @@ class OfflineError(CivitaiError):
 
 class RateLimitError(CivitaiError):
     exit_code = 9
+
+
+class NetworkError(CivitaiError):
+    exit_code = 10

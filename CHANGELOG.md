@@ -6,6 +6,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+- Reject path-traversal / absolute filenames supplied by the API before building any path
+  (could otherwise write outside the cache / `--local-dir`).
+- Validate the download host (`civitai.com` only) before requesting — closes SSRF and stops the
+  auth token from reaching an API-named third-party host.
+- Send the token via the `Authorization` header instead of a `?token=` query param, so it never
+  appears in a URL, log, or traceback.
+
+### Fixed
+- Wrap transport failures (`httpx` connect/read/protocol errors) as a catchable `NetworkError`
+  (exit code 10) with transport-level retry, instead of leaking a raw traceback.
+- `--force` now restarts the download from scratch instead of resuming a stale partial.
+- `link_or_copy` falls back to copy on Windows cross-drive `ValueError`, not just `OSError`.
+
+### Packaging
+- Single-source the version from `__init__.py` (`[tool.hatch.version]`); the publish workflow
+  guards that the package version matches the release tag.
+- Trim dev files from the PyPI sdist; add Dependabot for GitHub Actions.
+
 ## [0.1.0] - 2026-06-16
 
 ### Added

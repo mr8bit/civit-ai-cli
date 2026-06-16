@@ -6,6 +6,7 @@ from civitai_hub.client import BASE_URL, CivitaiClient
 from civitai_hub.errors import (
     AuthRequiredError,
     ForbiddenError,
+    NetworkError,
     NotFoundError,
     RateLimitError,
 )
@@ -57,6 +58,13 @@ def test_status_maps_to_error(status, exc):
 def test_429_exhausted_raises_rate_limit():
     respx.get(f"{BASE_URL}/models/9").mock(return_value=httpx.Response(429))
     with pytest.raises(RateLimitError):
+        CivitaiClient(max_retries=1, backoff_base=0).get_model(9)
+
+
+@respx.mock
+def test_transport_error_wrapped_as_network_error():
+    respx.get(f"{BASE_URL}/models/9").mock(side_effect=httpx.ConnectError("down"))
+    with pytest.raises(NetworkError):
         CivitaiClient(max_retries=1, backoff_base=0).get_model(9)
 
 

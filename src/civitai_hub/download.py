@@ -3,20 +3,45 @@ store, materialize."""
 import hashlib
 import logging
 import os
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+import httpx
+
 from .cache import CacheStore, link_or_copy
 from .client import CivitaiClient
 from .config import Settings
-from .errors import CivitaiError, EarlyAccessError, HashMismatchError, OfflineError
+from .errors import (
+    CivitaiError,
+    EarlyAccessError,
+    HashMismatchError,
+    NetworkError,
+    OfflineError,
+)
 from .models import ModelFile, ModelVersion
 
 logger = logging.getLogger(__name__)
 _CHUNK = 1 << 16
 _DANGER_SCAN = {"Danger", "Error"}
 ProgressCb = Callable[[int, int], None]
+
+
+def _safe_filename(name: str) -> str:
+    """The API supplies file.name; it must be a single filename, never a path.
+    Reject separators / .. so it can't escape the cache or local_dir (traversal)."""
+    if not name or name in (".", "..") or any(c in name for c in ("/", "\\", "\x00")):
+        raise CivitaiError(f"Refusing unsafe filename from API: {name!r}")
+    return name
+
+
+def _require_trusted_host(url: str) -> None:
+    """Download URLs come from API JSON; only fetch (and send the auth header) to
+    civitai.com so a spoofed response can't trigger SSRF or exfiltrate the token."""
+    host = urllib.parse.urlsplit(url).hostname or ""
+    if host != "civitai.com" and not host.endswith(".civitai.com"):
+        raise CivitaiError(f"Refusing to download from untrusted host: {host or url!r}")
 
 
 def check_availability(version: ModelVersion) -> None:
@@ -49,43 +74,51 @@ def _stream_to_temp(
     file: ModelFile,
     store: CacheStore,
     model_id: int,
-    token: str | None,
     progress_cb: ProgressCb | None,
 ) -> Path:
     url = file.download_url
     if not url:
         raise CivitaiError(f"File {file.name} has no downloadUrl.")
-    # Token goes via params (httpx can redact it) rather than baked into the URL string.
-    params = {"token": token} if token else None
+    _require_trusted_host(url)
+    # The auth token rides the client's Authorization header (set in CivitaiClient),
+    # not the URL — httpx redacts headers and strips them on the cross-host CDN
+    # redirect, so the token never lands in a URL, log, or traceback.
     tmp = store.incomplete_path(model_id, file)
     tmp.parent.mkdir(parents=True, exist_ok=True)
 
     for _ in (0, 1):  # second pass restarts from byte 0 if the byte range is rejected (416)
         resume_from = tmp.stat().st_size if tmp.exists() else 0
         headers = {"Range": f"bytes={resume_from}-"} if resume_from else {}
-        with client.http.stream("GET", url, params=params, headers=headers) as resp:
-            if resp.status_code == 416 and resume_from:
-                tmp.unlink(missing_ok=True)  # stale/oversized partial -> drop and restart
-                continue
-            if resp.status_code not in (200, 206):
-                resp.read()  # body must be read before mapping a streaming error (B1)
-                CivitaiClient._raise_for_status(resp)
-            append = resp.status_code == 206 and resume_from > 0
-            if not append:
-                resume_from = 0
-            total = int(resp.headers.get("Content-Length", 0)) + (resume_from if append else 0)
-            downloaded = resume_from
-            try:
-                with open(tmp, "ab" if append else "wb") as fh:
-                    for chunk in resp.iter_bytes(_CHUNK):
-                        fh.write(chunk)
-                        downloaded += len(chunk)
-                        if progress_cb:
-                            progress_cb(downloaded, total)
-            except BaseException:
-                if not append:  # keep a clean partial for resume; discard a fresh-start temp
-                    tmp.unlink(missing_ok=True)
-                raise
+        try:
+            with client.http.stream("GET", url, headers=headers) as resp:
+                if resp.status_code == 416 and resume_from:
+                    tmp.unlink(missing_ok=True)  # stale/oversized partial -> drop and restart
+                    continue
+                if resp.status_code not in (200, 206):
+                    resp.read()  # body must be read before mapping a streaming error (B1)
+                    CivitaiClient._raise_for_status(resp)
+                append = resp.status_code == 206 and resume_from > 0
+                if not append:
+                    resume_from = 0
+                total = int(resp.headers.get("Content-Length", 0)) + (resume_from if append else 0)
+                downloaded = resume_from
+                try:
+                    with open(tmp, "ab" if append else "wb") as fh:
+                        for chunk in resp.iter_bytes(_CHUNK):
+                            fh.write(chunk)
+                            downloaded += len(chunk)
+                            if progress_cb:
+                                progress_cb(downloaded, total)
+                except BaseException:
+                    if not append:  # keep a clean partial for resume; discard a fresh-start temp
+                        tmp.unlink(missing_ok=True)
+                    raise
+        except httpx.HTTPError as exc:
+            # transport error (connect/read/protocol) -> clean, catchable error; the
+            # partial is left on disk so a re-run resumes.
+            raise NetworkError(
+                f"Network error downloading {file.name}: {type(exc).__name__}. Re-run to resume."
+            ) from None
         return tmp
     raise CivitaiError(f"Server rejected the byte range for {file.name} (HTTP 416).")
 
@@ -126,6 +159,7 @@ def download_file(
     allow_unscanned: bool = False,
     progress_cb: ProgressCb | None = None,
 ) -> Path:
+    _safe_filename(file.name)  # reject path-traversal names before any path is built
     check_availability(version)
     if _scan_blocks(file):
         if not allow_unscanned:
@@ -141,7 +175,9 @@ def download_file(
     if force or not store.is_cached(model_id, file):
         if settings.offline:
             raise OfflineError(f"{file.name} is not cached and offline mode is on.")
-        tmp = _stream_to_temp(client, file, store, model_id, settings.token, progress_cb)
+        if force:
+            store.incomplete_path(model_id, file).unlink(missing_ok=True)  # restart, don't resume
+        tmp = _stream_to_temp(client, file, store, model_id, progress_cb)
         _verify(tmp, file)
         store.store(tmp, model_id, version.id, file)
 

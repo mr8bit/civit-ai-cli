@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Library-first; the Typer CLI (`cli.py`) is a thin wrapper over the public API in `__init__.py` (`model_info`, `download`). Layered, each unit-tested with `respx` (no real network in tests):
+Library-first; the Typer CLI (`cli.py`, commands `info`/`download`/`base`) is a thin wrapper over the public API in `__init__.py` (`model_info`, `download`, `find_base_models`). Layered, each unit-tested with `respx` (no real network in tests):
 
 `urls` (parse URL→ModelRef) → `client` (httpx + auth + retry + error mapping) → `models` (lenient pydantic). Plus `resolver` (pick version/file), `cache` (content-addressed blobs + snapshot symlinks, keyed by immutable version id), `download` (stream + range-resume + SHA256 verify + materialize), `config` (flag>env>default), `errors` (exit-code-bearing hierarchy), `render` (rich tables).
 

@@ -21,7 +21,7 @@ $ civitai download https://civitai.com/models/580857 --fp16 -o ~/ComfyUI/models/
 
 ## Features
 
-- **Inspect before you fetch** — `civitai info <url>` shows the model type, base/parent model, versions, and a table of every file (size, format, precision, hash, scan status).
+- **Inspect before you fetch** — `civitai info <url>` shows the model type, base/parent model, the selected version, and a table of every file in it (size, format, precision, hash, scan status).
 - **Smart, scriptable downloads** — picks the URL-pinned version (or the latest) and its primary file by default; override with `--version-id`, `--fp16/--fp32`, `--pruned/--full`, `--format`, `--file`, or grab everything with `--all`.
 - **Find the base model** — `civitai base <lora-url>` lists the checkpoints a LoRA's base-model family runs on (CivitAI only exposes the family name, not a direct link), with `--download N` to grab one.
 - **Managed cache like HF Hub** — content-addressed blobs keyed by SHA256, with per-version snapshot symlinks. The same file reused across versions is stored once. Re-downloads are skipped.
@@ -122,15 +122,17 @@ Precedence is **flag → environment variable → default**.
 
 | Setting | Flag | Env var | Default |
 |---|---|---|---|
-| API token | `--token` | `CIVITAI_TOKEN` | _(anonymous)_ |
-| Cache root | `--cache-dir` | `CIVITAI_HOME` | platform cache dir (`~/.cache/civitai` on Linux) |
+| API token | `--token` (download/base) | `CIVITAI_TOKEN` | _(anonymous)_ |
+| Cache root | `--cache-dir` (download/base) | `CIVITAI_HOME` | platform cache dir (`~/.cache/civitai` on Linux) |
 | Offline (cache only) | — | `CIVITAI_OFFLINE` | off |
-| Copy instead of symlink | `--no-symlinks` | `CIVITAI_DISABLE_SYMLINKS` | symlinks on |
-| Disable progress bar | `--no-progress` | `CIVITAI_NO_PROGRESS` | progress on |
+| Copy instead of symlink | `--no-symlinks` (download) | `CIVITAI_DISABLE_SYMLINKS` | symlinks on |
+| Disable progress bar | `--no-progress` (download/base) | `CIVITAI_NO_PROGRESS` | progress on |
+
+The flags live on `download`/`base`; `civitai info` takes only `--version-id`/`--json` and reads the env vars for everything else.
 
 ## How it works
 
-A model URL resolves to one `GET /api/v1/models/{id}` call; the version is the URL's pinned `modelVersionId` (or the latest published one), and the file is that version's primary `.safetensors` unless you filter it. Downloads stream the signed CDN URL with `?token=` (CivitAI strips the `Authorization` header on the cross-domain redirect), verify SHA256, and land in the cache:
+A model URL resolves to one `GET /api/v1/models/{id}` call; the version is the URL's pinned `modelVersionId` (or the latest published one), and the file is that version's primary `.safetensors` unless you filter it. Downloads go only to `civitai.com` (the host is checked first) and authenticate with the `Authorization` header — httpx strips it on the cross-host CDN redirect, so the token never leaves civitai.com or lands in a URL. The download is SHA256-verified and lands in the cache:
 
 ```
 $CIVITAI_HOME/

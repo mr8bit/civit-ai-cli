@@ -35,7 +35,7 @@ Library-first; the Typer CLI (`cli.py`) is a thin wrapper over the public API in
 | `config.py` | settings resolution (flag → env → default) |
 | `errors.py` | exception hierarchy carrying CLI exit codes |
 | `render.py` | `rich` tables, dry-run output, and the download progress bar |
-| `cli.py` | the `civitai` Typer app (`info`, `download`) |
+| `cli.py` | the `civitai` Typer app (`info`, `download`, `base`) |
 
 Dependencies only point "down": `cli → public API → urls → client → models`, plus `resolver`/`cache`/`download`. No module imports a layer above it.
 

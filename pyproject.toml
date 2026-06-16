@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "civitai-hub"
-version = "0.1.0"
+dynamic = ["version"]
 description = "huggingface_hub but for CivitAI — inspect and download models/LoRAs"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -44,8 +44,16 @@ dev = ["pytest>=8", "respx>=0.21", "ruff>=0.5"]
 [project.scripts]
 civitai = "civitai_hub.cli:app"
 
+# Single source of truth for the version: derived from src/civitai_hub/__init__.py
+[tool.hatch.version]
+path = "src/civitai_hub/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/civitai_hub"]
+
+# Keep dev cruft out of the PyPI sdist.
+[tool.hatch.build.targets.sdist]
+exclude = ["/.github", "/docs", "/scripts", "/CLAUDE.md", "/.dockerignore", "/Dockerfile"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
