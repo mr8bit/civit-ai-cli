@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Guard package version matches the release tag
         run: |
           V=$(grep -oP '__version__\s*=\s*"\K[^"]+' src/civitai_hub/__init__.py)
@@ -48,7 +48,7 @@ jobs:
     permissions:
       id-token: write # required for trusted publishing
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Guard package version matches the release tag
         run: |
           V=$(grep -oP '__version__\s*=\s*"\K[^"]+' src/civitai_hub/__init__.py)
